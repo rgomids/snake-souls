@@ -9,6 +9,9 @@
   --snake: #1f7a46;
   --snake-head: #176338;
   --food: #d94f3d;
+  --barrier: #697480;
+  --enemy: #b74fb8;
+  --power: #e0b826;
 }
 
 [data-theme="dark"] {
@@ -22,6 +25,9 @@
   --snake: #2a9d5c;
   --snake-head: #36b46e;
   --food: #eb6b57;
+  --barrier: #7e8b98;
+  --enemy: #cd6ac8;
+  --power: #f4cc3f;
 }
 
 * {
@@ -40,6 +46,10 @@ body {
   max-width: 560px;
   margin: 0 auto;
   padding: 20px 16px 32px;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .top-bar {
@@ -61,11 +71,61 @@ h1 {
   font-size: 1.4rem;
 }
 
+h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
 .scoreboard {
   display: flex;
   gap: 12px;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.menu-screen {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.menu-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+
+.game-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.app[data-mode="menu"] .levels-only,
+.app[data-mode="traditional"] .levels-only {
+  display: none;
 }
 
 .game-area {
@@ -102,6 +162,18 @@ h1 {
 
 .cell.food {
   background: var(--food);
+}
+
+.cell.barrier {
+  background: var(--barrier);
+}
+
+.cell.enemy {
+  background: var(--enemy);
+}
+
+.cell.power-up {
+  background: var(--power);
 }
 
 .actions {

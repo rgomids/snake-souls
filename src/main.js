@@ -1,28 +1,53 @@
 "use strict";
 
+const { directionFromInputKey } = window.SnakeLogic;
 const {
-  createInitialState,
-  directionFromInputKey,
-  queueDirection,
-  stepState,
-  togglePause,
-} = window.SnakeLogic;
+  createModeState,
+  queueModeDirection,
+  restartModeState,
+  stepModeState,
+  toggleModePause,
+} = window.SnakeModes;
 
 const GRID_WIDTH = 20;
 const GRID_HEIGHT = 20;
-const TICK_MS = 120;
+const THEME_KEY = "snake-theme";
+
+const SCREEN_MENU = "menu";
+const SCREEN_PLAYING = "playing";
+const SCREEN_GAMEOVER = "gameover";
+
+const appElement = document.querySelector(".app");
+const menuScreenElement = document.getElementById("menu-screen");
+const gameScreenElement = document.getElementById("game-screen");
+
+const modeSelect = document.getElementById("mode-select");
+const startButton = document.getElementById("start-btn");
+const menuButton = document.getElementById("menu-btn");
 
 const gridElement = document.getElementById("grid");
 const scoreElement = document.getElementById("score");
 const statusElement = document.getElementById("status");
+const modeLabelElement = document.getElementById("mode-label");
+const levelValueElement = document.getElementById("level-value");
+const levelProgressElement = document.getElementById("level-progress");
+const shieldTimeElement = document.getElementById("shield-time");
+
 const pauseButton = document.getElementById("pause-btn");
 const restartButton = document.getElementById("restart-btn");
 const themeToggle = document.getElementById("theme-toggle");
 const touchButtons = Array.from(document.querySelectorAll("[data-direction]"));
-const THEME_KEY = "snake-theme";
 
-let state = createInitialState({ width: GRID_WIDTH, height: GRID_HEIGHT });
+const appState = {
+  screen: SCREEN_MENU,
+  modeState: null,
+  tickerId: null,
+  currentTickMs: null,
+};
+
 const cells = [];
+let gridWidth = 0;
+let gridHeight = 0;
 
 function getSavedTheme() {
   try {
@@ -63,19 +88,61 @@ function getInitialTheme() {
   return "light";
 }
 
-function indexForPosition(position) {
-  return position.y * state.width + position.x;
+function formatModeLabel(mode) {
+  if (mode === "levels") {
+    return "Levels";
+  }
+  return "Traditional";
 }
 
-function buildGrid() {
-  gridElement.style.setProperty("--grid-width", String(state.width));
-  gridElement.style.setProperty("--grid-height", String(state.height));
+function getStatusText() {
+  if (!appState.modeState) {
+    return "Ready";
+  }
+
+  if (appState.modeState.isGameOver) {
+    return "Game over";
+  }
+
+  if (appState.modeState.isPaused) {
+    return "Paused";
+  }
+
+  return "Running";
+}
+
+function setScreen(screen) {
+  appState.screen = screen;
+  appElement.dataset.screen = screen;
+
+  const isMenu = screen === SCREEN_MENU;
+  menuScreenElement.classList.toggle("hidden", !isMenu);
+  gameScreenElement.classList.toggle("hidden", isMenu);
+}
+
+function setModeDataset() {
+  if (!appState.modeState) {
+    appElement.dataset.mode = "menu";
+    return;
+  }
+  appElement.dataset.mode = appState.modeState.mode;
+}
+
+function ensureGrid(width, height) {
+  if (gridWidth === width && gridHeight === height && cells.length > 0) {
+    return;
+  }
+
+  gridWidth = width;
+  gridHeight = height;
+  gridElement.style.setProperty("--grid-width", String(width));
+  gridElement.style.setProperty("--grid-height", String(height));
   gridElement.innerHTML = "";
   cells.length = 0;
 
   const fragment = document.createDocumentFragment();
-  for (let y = 0; y < state.height; y += 1) {
-    for (let x = 0; x < state.width; x += 1) {
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
       const cell = document.createElement("div");
       cell.className = "cell";
       cells.push(cell);
@@ -86,91 +153,212 @@ function buildGrid() {
   gridElement.appendChild(fragment);
 }
 
-function resetCellStyles() {
+function indexForPosition(position) {
+  return position.y * gridWidth + position.x;
+}
+
+function paintCell(position, className) {
+  if (!position) return;
+  const cell = cells[indexForPosition(position)];
+  if (!cell) return;
+  cell.classList.add(className);
+}
+
+function resetGridStyles() {
   for (const cell of cells) {
     cell.className = "cell";
   }
 }
 
-function updateStatusText() {
-  if (state.isGameOver) {
-    statusElement.textContent = "Game over";
+function renderBoard(modeState) {
+  resetGridStyles();
+
+  for (const barrier of modeState.barriers) {
+    paintCell(barrier, "barrier");
+  }
+
+  if (modeState.base.food) {
+    paintCell(modeState.base.food, "food");
+  }
+
+  if (modeState.powerUp) {
+    paintCell(modeState.powerUp, "power-up");
+  }
+
+  if (modeState.enemy) {
+    paintCell(modeState.enemy, "enemy");
+  }
+
+  for (let i = 0; i < modeState.base.snake.length; i += 1) {
+    const segment = modeState.base.snake[i];
+    paintCell(segment, "snake");
+    if (i === 0) {
+      paintCell(segment, "head");
+    }
+  }
+}
+
+function renderHud(modeState) {
+  if (!modeState) {
+    modeLabelElement.textContent = "-";
+    levelValueElement.textContent = "-";
+    levelProgressElement.textContent = "-";
+    shieldTimeElement.textContent = "0.0s";
     return;
   }
 
-  if (state.isPaused) {
-    statusElement.textContent = "Paused";
-    return;
-  }
+  modeLabelElement.textContent = formatModeLabel(modeState.mode);
 
-  statusElement.textContent = "Running";
+  if (modeState.mode === "levels") {
+    levelValueElement.textContent = String(modeState.level);
+    levelProgressElement.textContent = `${modeState.levelProgress}/${modeState.levelTarget}`;
+    shieldTimeElement.textContent = `${(modeState.shieldMsRemaining / 1000).toFixed(
+      1
+    )}s`;
+  } else {
+    levelValueElement.textContent = "-";
+    levelProgressElement.textContent = "-";
+    shieldTimeElement.textContent = "0.0s";
+  }
+}
+
+function renderButtons(modeState) {
+  const hasGame = Boolean(modeState);
+  const isMenu = appState.screen === SCREEN_MENU;
+  const isGameOver = hasGame && modeState.isGameOver;
+
+  pauseButton.disabled = !hasGame || isMenu || isGameOver;
+  pauseButton.textContent = hasGame && modeState.isPaused ? "Resume" : "Pause";
+  restartButton.disabled = !hasGame || isMenu;
+  menuButton.disabled = isMenu;
+  startButton.disabled = false;
 }
 
 function render() {
-  resetCellStyles();
+  setModeDataset();
 
-  for (let i = 0; i < state.snake.length; i += 1) {
-    const segment = state.snake[i];
-    const segmentCell = cells[indexForPosition(segment)];
-    if (!segmentCell) continue;
-    segmentCell.classList.add("snake");
-    if (i === 0) {
-      segmentCell.classList.add("head");
-    }
+  const modeState = appState.modeState;
+  scoreElement.textContent = String(modeState ? modeState.base.score : 0);
+  statusElement.textContent = getStatusText();
+
+  if (modeState) {
+    ensureGrid(modeState.base.width, modeState.base.height);
+    renderBoard(modeState);
   }
 
-  if (state.food) {
-    const foodCell = cells[indexForPosition(state.food)];
-    if (foodCell) {
-      foodCell.classList.add("food");
-    }
-  }
-
-  scoreElement.textContent = String(state.score);
-  updateStatusText();
-  pauseButton.disabled = state.isGameOver;
-  pauseButton.textContent = state.isPaused ? "Resume" : "Pause";
+  renderHud(modeState);
+  renderButtons(modeState);
 }
 
-function restartGame() {
-  state = createInitialState({ width: GRID_WIDTH, height: GRID_HEIGHT });
+function stopTicker() {
+  if (appState.tickerId !== null) {
+    window.clearInterval(appState.tickerId);
+    appState.tickerId = null;
+    appState.currentTickMs = null;
+  }
+}
+
+function startTicker(tickMs) {
+  stopTicker();
+  appState.currentTickMs = tickMs;
+  appState.tickerId = window.setInterval(onTick, tickMs);
+}
+
+function startGame(mode) {
+  appState.modeState = createModeState({
+    mode,
+    width: GRID_WIDTH,
+    height: GRID_HEIGHT,
+  });
+  setScreen(SCREEN_PLAYING);
+  ensureGrid(appState.modeState.base.width, appState.modeState.base.height);
+  startTicker(appState.modeState.tickMs);
   render();
 }
 
-function tick() {
-  state = stepState(state);
+function restartGame() {
+  if (!appState.modeState) return;
+
+  appState.modeState = restartModeState(appState.modeState);
+  setScreen(SCREEN_PLAYING);
+  ensureGrid(appState.modeState.base.width, appState.modeState.base.height);
+  startTicker(appState.modeState.tickMs);
+  render();
+}
+
+function backToMenu() {
+  stopTicker();
+  appState.modeState = null;
+  setScreen(SCREEN_MENU);
+  render();
+}
+
+function onTick() {
+  if (!appState.modeState || appState.screen === SCREEN_MENU) {
+    return;
+  }
+
+  const previousTickMs = appState.modeState.tickMs;
+  appState.modeState = stepModeState(appState.modeState);
+
+  if (appState.modeState.isGameOver) {
+    setScreen(SCREEN_GAMEOVER);
+    stopTicker();
+  } else if (appState.modeState.tickMs !== previousTickMs) {
+    startTicker(appState.modeState.tickMs);
+  }
+
   render();
 }
 
 document.addEventListener("keydown", (event) => {
+  if (appState.screen === SCREEN_MENU && event.key === "Enter") {
+    event.preventDefault();
+    startGame(modeSelect.value);
+    return;
+  }
+
+  if (!appState.modeState) {
+    return;
+  }
+
   const direction = directionFromInputKey(event.key);
   if (direction) {
     event.preventDefault();
-    state = queueDirection(state, direction);
+    appState.modeState = queueModeDirection(appState.modeState, direction);
     return;
   }
 
   const key = event.key.toLowerCase();
-  if (key === " " || key === "p") {
+  if ((key === " " || key === "p") && !appState.modeState.isGameOver) {
     event.preventDefault();
-    state = togglePause(state);
+    appState.modeState = toggleModePause(appState.modeState);
     render();
     return;
   }
 
-  if (key === "r") {
+  if (key === "r" && appState.screen !== SCREEN_MENU) {
     event.preventDefault();
     restartGame();
   }
 });
 
+startButton.addEventListener("click", () => {
+  startGame(modeSelect.value);
+});
+
 pauseButton.addEventListener("click", () => {
-  state = togglePause(state);
+  if (!appState.modeState) return;
+  appState.modeState = toggleModePause(appState.modeState);
   render();
 });
 
 restartButton.addEventListener("click", () => {
   restartGame();
+});
+
+menuButton.addEventListener("click", () => {
+  backToMenu();
 });
 
 if (themeToggle) {
@@ -183,12 +371,12 @@ if (themeToggle) {
 
 for (const button of touchButtons) {
   button.addEventListener("click", () => {
+    if (!appState.modeState) return;
     const direction = button.dataset.direction;
-    state = queueDirection(state, direction);
+    appState.modeState = queueModeDirection(appState.modeState, direction);
   });
 }
 
 applyTheme(getInitialTheme());
-buildGrid();
+setScreen(SCREEN_MENU);
 render();
-window.setInterval(tick, TICK_MS);
