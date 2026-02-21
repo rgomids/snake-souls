@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snake</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="top-bar">
+        <h1>Snake</h1>
+        <div class="scoreboard">
+          <span>Score: <strong id="score">0</strong></span>
+          <span id="status">Running</span>
+        </div>
+      </header>
+
+      <section class="game-area" aria-label="Snake game board">
+        <div id="grid" class="grid" role="img" aria-label="Snake grid"></div>
+      </section>
+
+      <section class="actions" aria-label="Game actions">
+        <button id="pause-btn" type="button">Pause</button>
+        <button id="restart-btn" type="button">Restart</button>
+      </section>
+
+      <section class="touch-controls" aria-label="Directional controls">
+        <button type="button" data-direction="UP">Up</button>
+        <div class="touch-row">
+          <button type="button" data-direction="LEFT">Left</button>
+          <button type="button" data-direction="DOWN">Down</button>
+          <button type="button" data-direction="RIGHT">Right</button>
+        </div>
+      </section>
+
+      <p class="help">
+        Use arrow keys or WASD. Press Space/P to pause and R to restart.
+      </p>
+    </main>
+
+    <script src="./src/snake-logic.js"></script>
+    <script src="./src/main.js"></script>
+  </body>
+</html>
