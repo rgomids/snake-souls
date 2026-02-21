@@ -4,8 +4,24 @@
   --text: #20242a;
   --muted: #64707d;
   --line: #d7dde4;
+  --cell-border: #edf0f3;
+  --cell-bg: #f9fbfd;
   --snake: #1f7a46;
+  --snake-head: #176338;
   --food: #d94f3d;
+}
+
+[data-theme="dark"] {
+  --bg: #111417;
+  --panel: #1a1f25;
+  --text: #e8edf2;
+  --muted: #a8b4bf;
+  --line: #2b3440;
+  --cell-border: #26303a;
+  --cell-bg: #182029;
+  --snake: #2a9d5c;
+  --snake-head: #36b46e;
+  --food: #eb6b57;
 }
 
 * {
@@ -32,6 +48,12 @@ body {
   align-items: baseline;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.top-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 h1 {
@@ -65,9 +87,9 @@ h1 {
 
 .cell {
   aspect-ratio: 1 / 1;
-  border-right: 1px solid #edf0f3;
-  border-bottom: 1px solid #edf0f3;
-  background: #f9fbfd;
+  border-right: 1px solid var(--cell-border);
+  border-bottom: 1px solid var(--cell-border);
+  background: var(--cell-bg);
 }
 
 .cell.snake {
@@ -75,7 +97,7 @@ h1 {
 }
 
 .cell.head {
-  background: #176338;
+  background: var(--snake-head);
 }
 
 .cell.food {
@@ -96,6 +118,18 @@ button {
   padding: 8px 12px;
   font-size: 0.95rem;
   cursor: pointer;
+}
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.theme-switch input {
+  margin: 0;
 }
 
 button:disabled {

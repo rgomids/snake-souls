@@ -17,10 +17,51 @@ const scoreElement = document.getElementById("score");
 const statusElement = document.getElementById("status");
 const pauseButton = document.getElementById("pause-btn");
 const restartButton = document.getElementById("restart-btn");
+const themeToggle = document.getElementById("theme-toggle");
 const touchButtons = Array.from(document.querySelectorAll("[data-direction]"));
+const THEME_KEY = "snake-theme";
 
 let state = createInitialState({ width: GRID_WIDTH, height: GRID_HEIGHT });
 const cells = [];
+
+function getSavedTheme() {
+  try {
+    return window.localStorage.getItem(THEME_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveTheme(theme) {
+  try {
+    window.localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Ignore storage errors (private mode or blocked storage)
+  }
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  if (themeToggle) {
+    themeToggle.checked = theme === "dark";
+  }
+}
+
+function getInitialTheme() {
+  const savedTheme = getSavedTheme();
+  if (savedTheme === "dark" || savedTheme === "light") {
+    return savedTheme;
+  }
+
+  if (
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  ) {
+    return "dark";
+  }
+
+  return "light";
+}
 
 function indexForPosition(position) {
   return position.y * state.width + position.x;
@@ -132,6 +173,14 @@ restartButton.addEventListener("click", () => {
   restartGame();
 });
 
+if (themeToggle) {
+  themeToggle.addEventListener("change", () => {
+    const nextTheme = themeToggle.checked ? "dark" : "light";
+    applyTheme(nextTheme);
+    saveTheme(nextTheme);
+  });
+}
+
 for (const button of touchButtons) {
   button.addEventListener("click", () => {
     const direction = button.dataset.direction;
@@ -139,6 +188,7 @@ for (const button of touchButtons) {
   });
 }
 
+applyTheme(getInitialTheme());
 buildGrid();
 render();
 window.setInterval(tick, TICK_MS);
