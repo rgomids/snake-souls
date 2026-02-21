@@ -29,9 +29,23 @@
           <select id="mode-select">
             <option value="traditional">Traditional</option>
             <option value="levels">Levels</option>
+            <option value="souls">Souls</option>
           </select>
           <button id="start-btn" type="button">Start</button>
         </div>
+
+        <section id="souls-menu" class="souls-menu hidden" aria-label="Souls setup">
+          <p class="souls-summary">
+            Runas na carteira: <strong id="souls-wallet-menu">0</strong>
+            <span class="souls-divider">|</span>
+            Boss final vencido: <strong id="souls-clears-menu">0</strong>
+          </p>
+          <div id="souls-snakes" class="souls-snakes"></div>
+          <div class="souls-unlock-actions">
+            <span id="souls-unlock-label">Sem desbloqueio disponível.</span>
+            <button id="souls-unlock-btn" type="button">Desbloquear</button>
+          </div>
+        </section>
       </section>
 
       <section id="game-screen" class="game-screen hidden" aria-label="Game view">
@@ -42,6 +56,13 @@
             >Progress: <strong id="level-progress">-</strong></span
           >
           <span class="levels-only">Shield: <strong id="shield-time">0.0s</strong></span>
+          <span class="souls-only">Andar: <strong id="souls-floor">-</strong></span>
+          <span class="souls-only">Ciclo: <strong id="souls-cycle">-</strong></span>
+          <span class="souls-only">Fase: <strong id="souls-stage">-</strong></span>
+          <span class="souls-only">Objetivo: <strong id="souls-objective">-</strong></span>
+          <span class="souls-only">Runas em risco: <strong id="souls-carried">0</strong></span>
+          <span class="souls-only">Runas carteira: <strong id="souls-wallet">0</strong></span>
+          <span class="souls-only">Armadura: <strong id="souls-armor">0</strong></span>
         </section>
 
         <section class="game-area" aria-label="Snake game board">
@@ -66,10 +87,28 @@
         <p class="help">
           Use arrow keys or WASD. Press Space/P to pause and R to restart.
         </p>
+
+        <section id="souls-death-summary" class="souls-death-summary hidden">
+          <span>Runas perdidas: <strong id="souls-death-runes">0</strong></span>
+          <span>Eco criado: <strong id="souls-death-echo">0</strong></span>
+        </section>
+      </section>
+
+      <section id="souls-reward-modal" class="souls-reward-modal hidden" aria-label="Boss reward">
+        <div class="souls-reward-card">
+          <h3>Recompensa do Boss</h3>
+          <p class="souls-reward-help">
+            Escolha um poder para sua build. Você pode rerollar uma vez por 30 runas.
+          </p>
+          <div id="souls-reward-options" class="souls-reward-options"></div>
+          <button id="souls-reroll-btn" type="button">Reroll (30)</button>
+        </div>
       </section>
     </main>
 
     <script src="./src/snake-logic.js"></script>
+    <script src="./src/souls-data.js"></script>
+    <script src="./src/souls-profile.js"></script>
     <script src="./src/snake-modes.js"></script>
     <script src="./src/main.js"></script>
   </body>

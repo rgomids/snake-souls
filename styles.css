@@ -12,6 +12,9 @@
   --barrier: #697480;
   --enemy: #b74fb8;
   --power: #e0b826;
+  --sigil: #8e5de6;
+  --hazard: #ff7f50;
+  --echo: #f0d84f;
 }
 
 [data-theme="dark"] {
@@ -28,6 +31,9 @@
   --barrier: #7e8b98;
   --enemy: #cd6ac8;
   --power: #f4cc3f;
+  --sigil: #b88bff;
+  --hazard: #ff9d74;
+  --echo: #ffd970;
 }
 
 * {
@@ -81,6 +87,7 @@ h2 {
   gap: 12px;
   color: var(--muted);
   font-size: 0.95rem;
+  flex-wrap: wrap;
 }
 
 .menu-screen {
@@ -98,6 +105,79 @@ h2 {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.souls-menu {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.souls-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.souls-divider {
+  margin: 0 6px;
+}
+
+.souls-snakes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.snake-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.snake-card.active {
+  border-color: var(--snake);
+}
+
+.snake-card.locked {
+  opacity: 0.75;
+}
+
+.snake-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.snake-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.snake-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.souls-unlock-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.souls-unlock-actions span {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 select {
@@ -124,7 +204,14 @@ select {
 }
 
 .app[data-mode="menu"] .levels-only,
-.app[data-mode="traditional"] .levels-only {
+.app[data-mode="traditional"] .levels-only,
+.app[data-mode="souls"] .levels-only {
+  display: none;
+}
+
+.app[data-mode="menu"] .souls-only,
+.app[data-mode="traditional"] .souls-only,
+.app[data-mode="levels"] .souls-only {
   display: none;
 }
 
@@ -174,6 +261,50 @@ select {
 
 .cell.power-up {
   background: var(--power);
+}
+
+.cell.sigil {
+  background: var(--sigil);
+}
+
+.cell.hazard {
+  background: var(--hazard);
+}
+
+.cell.echo {
+  background: var(--echo);
+}
+
+.cell.snake.variant-basica {
+  background: #1f7a46;
+}
+
+.cell.head.variant-basica {
+  background: #176338;
+}
+
+.cell.snake.variant-veloz {
+  background: #2b77d8;
+}
+
+.cell.head.variant-veloz {
+  background: #1f5aa1;
+}
+
+.cell.snake.variant-tanque {
+  background: #b34b3f;
+}
+
+.cell.head.variant-tanque {
+  background: #8f3a30;
+}
+
+.cell.snake.variant-vidente {
+  background: #7446b8;
+}
+
+.cell.head.variant-vidente {
+  background: #5d3597;
 }
 
 .actions {
@@ -226,6 +357,67 @@ button:disabled {
   margin-top: 12px;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.souls-death-summary {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.souls-reward-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 20;
+}
+
+.souls-reward-card {
+  width: min(540px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.souls-reward-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.souls-reward-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.souls-reward-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.souls-reward-option {
+  text-align: left;
+  min-height: 82px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.souls-reward-option small {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 @media (pointer: coarse) {
