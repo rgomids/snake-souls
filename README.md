@@ -59,12 +59,14 @@ php -S localhost:8000
 ### Controles on-screen/mobile
 - Menu inicial: selecione o modo pelos botões com ícones e clique em `Iniciar`.
 - No Souls em gameplay ativo: D-pad fixo e botão de pausa flutuante.
+- No Souls, manter direção pressionada no D-pad também consome estamina para boost.
 - Fora do modo imersivo: botões direcionais `Up/Left/Down/Right` abaixo do board.
 - Botões de ação: `Pause`, `Restart`, `Back to menu`.
 
 ### Observação de velocidade (estado atual)
 - Há redução global de velocidade base da cobra.
-- Se o jogador mantém pressionada a tecla da **direção atual**, a cobra volta para a cadência base original dessa direção (sem boost extra).
+- No modo Souls, segurar a tecla/botão da direção atual ativa boost por estamina.
+- Ao zerar estamina: 1s de exaustão (mais lenta) e recarga travada até completar barra.
 
 ## 4) Modos de jogo
 
@@ -119,6 +121,7 @@ Pool atual:
 - `Voracidade` (máx. 2)
 - `Passo Fantasma` (máx. 1)
 - `Runa Viva` (máx. 2)
+- `Adrenalina` (máx. 2)
 
 A sidebar direita mostra somente poderes com stack `> 0`.
 
@@ -133,6 +136,7 @@ A sidebar direita mostra somente poderes com stack `> 0`.
 ### Caçador
 - Footprint: `2x2`
 - Comportamento: perseguição agressiva.
+- Velocidade base alinhada com a velocidade normal da cobra (sem boost).
 
 ### Carcereiro
 - Footprint: `2x2`

@@ -99,6 +99,12 @@
       description: "Aumenta ganho de runas em 30% por stack.",
       maxStacks: 2,
     }),
+    Object.freeze({
+      id: "adrenalina",
+      name: "Adrenalina",
+      description: "Aumenta reserva e recuperacao de estamina.",
+      maxStacks: 2,
+    }),
   ]);
 
   const BOSS_DEFINITIONS = Object.freeze({
@@ -112,7 +118,7 @@
       width: 2,
       height: 2,
       size: 2,
-      speedPenaltyTicks: 1,
+      speedPenaltyTicks: 0,
     }),
     2: Object.freeze({
       id: "carcereiro",

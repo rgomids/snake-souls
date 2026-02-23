@@ -6,11 +6,16 @@
     const deltaMs = Math.max(0, options.deltaMs ?? 0);
     const fixedStepMs = Math.max(0.0001, options.fixedStepMs ?? 16.6667);
     const maxStepsPerFrame = Math.max(1, options.maxStepsPerFrame ?? 5);
+    const dropOverflow = options.dropOverflow === true;
 
     const total = accumulatorMs + deltaMs;
     const requestedSteps = Math.floor(total / fixedStepMs);
     const steps = Math.min(maxStepsPerFrame, requestedSteps);
-    const rawRemainingMs = total - steps * fixedStepMs;
+    const overflow = Math.max(0, requestedSteps - steps);
+    const rawRemainingMs =
+      dropOverflow && overflow > 0
+        ? total - requestedSteps * fixedStepMs
+        : total - steps * fixedStepMs;
     const maxAccumulatorMs = fixedStepMs * maxStepsPerFrame;
     const accumulatorAfterMs = Math.min(rawRemainingMs, maxAccumulatorMs);
 
@@ -18,6 +23,7 @@
       steps,
       accumulatorAfterMs,
       requestedSteps,
+      overflowStepsDropped: dropOverflow ? overflow : 0,
     };
   }
 

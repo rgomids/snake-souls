@@ -201,3 +201,133 @@ test("food indicator points when food is offscreen", () => {
   assert.equal(next.souls.sigilIndicator.visible, true);
   assert.ok(next.souls.sigilIndicator.distance > 20);
 });
+
+test("souls stamina drains on hold and enters exhaustion/lock", () => {
+  let state = createSouls();
+  state.souls.world = null;
+  state.enemy = null;
+  state.souls.minions = [];
+  state.souls.hazards = [];
+  state.souls.objectiveType = "food";
+  state.souls.objectiveTarget = 999;
+  state.base.food = { x: 9999, y: 9999 };
+
+  state = stepModeState(state, {
+    deltaMs: 1000,
+    holdCurrentDirection: true,
+    rng: () => 0.31,
+  });
+  assert.equal(state.souls.stamina.phase, "ready");
+  assert.ok(state.souls.stamina.current <= 75.1 && state.souls.stamina.current >= 74.8);
+
+  for (let i = 0; i < 4; i += 1) {
+    state = stepModeState(state, {
+      deltaMs: 1000,
+      holdCurrentDirection: true,
+      rng: () => 0.31,
+    });
+  }
+
+  assert.equal(state.souls.stamina.phase, "recovering_lock");
+  assert.ok(state.souls.stamina.current >= 0);
+  assert.ok(state.souls.stamina.current < state.souls.stamina.max);
+
+  state = stepModeState(state, {
+    deltaMs: 12000,
+    holdCurrentDirection: true,
+    rng: () => 0.31,
+  });
+  assert.equal(state.souls.stamina.phase, "ready");
+  assert.equal(Math.round(state.souls.stamina.current), state.souls.stamina.max);
+});
+
+test("souls exhausted stamina slows snake below normal speed", () => {
+  const normal = createSouls();
+  normal.souls.world = null;
+  normal.enemy = null;
+  normal.souls.minions = [];
+  normal.souls.hazards = [];
+  normal.souls.objectiveType = "food";
+  normal.souls.objectiveTarget = 999;
+  normal.base.food = { x: 9999, y: 9999 };
+
+  const readyStep = stepModeState(normal, {
+    deltaMs: 16,
+    holdCurrentDirection: false,
+    rng: () => 0.14,
+  });
+
+  const exhaustedState = cloneState(normal);
+  exhaustedState.souls.stamina = {
+    ...exhaustedState.souls.stamina,
+    current: 0,
+    phase: "exhausted",
+    exhaustedMsRemaining: 1000,
+    lockMsRemaining: 0,
+  };
+  const exhaustedStep = stepModeState(exhaustedState, {
+    deltaMs: 16,
+    holdCurrentDirection: false,
+    rng: () => 0.14,
+  });
+
+  assert.ok(exhaustedStep.souls.snakeSpeedCps < readyStep.souls.snakeSpeedCps);
+});
+
+test("adrenalina increases stamina max and recovery speed", () => {
+  const base = createSouls();
+  base.souls.world = null;
+  base.enemy = null;
+  base.souls.minions = [];
+  base.souls.hazards = [];
+  base.souls.objectiveType = "food";
+  base.souls.objectiveTarget = 999;
+  base.base.food = { x: 9999, y: 9999 };
+
+  const boosted = cloneState(base);
+  boosted.souls.powers.adrenalina = 2;
+  boosted.souls.stamina.current = 0;
+  boosted.souls.stamina.phase = "recovering_lock";
+  boosted.souls.stamina.lockMsRemaining = 12000;
+
+  const baseline = cloneState(base);
+  baseline.souls.stamina.current = 0;
+  baseline.souls.stamina.phase = "recovering_lock";
+  baseline.souls.stamina.lockMsRemaining = 12000;
+
+  const boostedStep = stepModeState(boosted, {
+    deltaMs: 1000,
+    holdCurrentDirection: false,
+    rng: () => 0.2,
+  });
+  const baselineStep = stepModeState(baseline, {
+    deltaMs: 1000,
+    holdCurrentDirection: false,
+    rng: () => 0.2,
+  });
+
+  assert.equal(boostedStep.souls.stamina.max, 140);
+  assert.ok(boostedStep.souls.stamina.current > baselineStep.souls.stamina.current);
+});
+
+test("boss 1 matches normal snake speed and stamina boost opens escape window", () => {
+  let state = createSouls();
+  state = devSetSoulsFloor(state, 3, { includeCountdown: false, rng: () => 0.42 });
+  state.souls.world = null;
+  state.souls.hazards = [];
+  state.souls.minions = [];
+
+  const normalStep = stepModeState(state, {
+    deltaMs: 16,
+    holdCurrentDirection: false,
+    rng: () => 0.42,
+  });
+  assert.ok(Math.abs(normalStep.souls.enemySpeedCps - normalStep.souls.snakeSpeedCps) < 0.001);
+
+  const boostedStep = stepModeState(normalStep, {
+    deltaMs: 200,
+    holdCurrentDirection: true,
+    rng: () => 0.42,
+  });
+  assert.ok(boostedStep.souls.snakeSpeedCps > boostedStep.souls.enemySpeedCps);
+});

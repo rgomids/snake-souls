@@ -29,4 +29,20 @@ test("fixed-step scheduler caps catch-up to maxStepsPerFrame", () => {
   assert.equal(result.steps, 5);
   assert.equal(result.requestedSteps, 20);
   assert.equal(result.accumulatorAfterMs, 50);
+  assert.equal(result.overflowStepsDropped, 0);
+});
+
+test("fixed-step scheduler can drop overflow backlog", () => {
+  const result = calculateFixedSteps({
+    accumulatorMs: 0,
+    deltaMs: 200,
+    fixedStepMs: 10,
+    maxStepsPerFrame: 5,
+    dropOverflow: true,
+  });
+
+  assert.equal(result.steps, 5);
+  assert.equal(result.requestedSteps, 20);
+  assert.equal(result.accumulatorAfterMs, 0);
+  assert.equal(result.overflowStepsDropped, 15);
 });

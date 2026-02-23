@@ -28,9 +28,9 @@ const THEME_KEY = "snake-theme";
 const SCREEN_MENU = "menu";
 const SCREEN_PLAYING = "playing";
 const SCREEN_GAMEOVER = "gameover";
-const SOULS_FIXED_STEP_MS = 1000 / 120;
-const SOULS_MAX_STEPS_PER_FRAME = 5;
-const SOULS_MAX_FRAME_DELTA_MS = 250;
+const SOULS_FIXED_STEP_MS = 1000 / 90;
+const SOULS_MAX_STEPS_PER_FRAME = 4;
+const SOULS_MAX_FRAME_DELTA_MS = 120;
 
 const appElement = document.querySelector(".app");
 const menuScreenElement = document.getElementById("menu-screen");
@@ -82,6 +82,8 @@ const soulsCountdownElement = document.getElementById("souls-countdown");
 const soulsStageMessageElement = document.getElementById("souls-stage-message");
 const soulsSigilArrowElement = document.getElementById("souls-sigil-arrow");
 const soulsSigilDistanceElement = document.getElementById("souls-sigil-distance");
+const soulsStaminaElement = document.getElementById("souls-stamina");
+const soulsStaminaFillElement = document.getElementById("souls-stamina-fill");
 const floatingPauseButton = document.getElementById("floating-pause-btn");
 const bossIntelListElement = document.getElementById("boss-intel-list");
 const devPanelElement = document.getElementById("dev-panel");
@@ -122,6 +124,8 @@ if (initiallySelectedMenuButton) {
 const cells = [];
 let gridWidth = 0;
 let gridHeight = 0;
+let cellClassCache = [];
+let cellOpacityCache = [];
 
 function loadSoulsProfileFromStorage() {
   try {
@@ -331,6 +335,8 @@ function ensureGrid(width, height) {
   }
 
   gridElement.appendChild(fragment);
+  cellClassCache = new Array(cells.length).fill("cell");
+  cellOpacityCache = new Array(cells.length).fill("");
 }
 
 function indexForPosition(position) {
@@ -347,34 +353,30 @@ function isInsideGrid(position) {
   );
 }
 
-function paintCell(position, className) {
-  if (!position) return;
-  if (!isInsideGrid(position)) return;
-  const cell = cells[indexForPosition(position)];
-  if (!cell) return;
-  cell.classList.add(className);
-}
-
-function resetGridStyles() {
-  for (const cell of cells) {
-    cell.className = "cell";
-    cell.style.opacity = "";
-  }
-}
-
 function renderBoard(modeState) {
-  resetGridStyles();
+  if (!modeState || cells.length === 0) {
+    return;
+  }
+
+  const nextClassMap = new Array(cells.length).fill("cell");
+  const nextOpacityMap = new Array(cells.length).fill("");
   const soulsOrigin = getSoulsViewportOrigin(modeState);
 
-  const paint = (worldPosition, className, extraClass = null) => {
+  const appendClassAt = (index, className) => {
+    nextClassMap[index] += ` ${className}`;
+  };
+
+  const paint = (worldPosition, className, extraClass = null, opacity = null) => {
     const renderPosition = toRenderPosition(modeState, worldPosition, soulsOrigin);
     if (!renderPosition) return;
     if (!isInsideGrid(renderPosition)) return;
-    const cell = cells[indexForPosition(renderPosition)];
-    if (!cell) return;
-    cell.classList.add(className);
+    const index = indexForPosition(renderPosition);
+    appendClassAt(index, className);
     if (extraClass) {
-      cell.classList.add(extraClass);
+      appendClassAt(index, extraClass);
+    }
+    if (opacity !== null) {
+      nextOpacityMap[index] = String(opacity);
     }
   };
 
@@ -439,21 +441,34 @@ function renderBoard(modeState) {
   for (let i = 0; i < modeState.base.snake.length; i += 1) {
     const segment = toRenderPosition(modeState, modeState.base.snake[i], soulsOrigin);
     if (!isInsideGrid(segment)) continue;
-    const cell = segment ? cells[indexForPosition(segment)] : null;
-    if (!cell) continue;
-
-    cell.classList.add("snake");
+    const index = indexForPosition(segment);
+    appendClassAt(index, "snake");
     if (variantClass) {
-      cell.classList.add(variantClass);
+      appendClassAt(index, variantClass);
     }
 
     if (i === 0) {
-      cell.classList.add("head");
-      cell.style.opacity = "1";
+      appendClassAt(index, "head");
+      nextOpacityMap[index] = "1";
     } else {
       const ratio = snakeLength > 1 ? i / (snakeLength - 1) : 1;
       const opacity = Math.max(0.25, 1 - ratio * 0.75);
-      cell.style.opacity = opacity.toFixed(3);
+      nextOpacityMap[index] = opacity.toFixed(3);
+    }
+  }
+
+  for (let index = 0; index < cells.length; index += 1) {
+    const cell = cells[index];
+    const nextClass = nextClassMap[index];
+    if (cellClassCache[index] !== nextClass) {
+      cell.className = nextClass;
+      cellClassCache[index] = nextClass;
+    }
+
+    const nextOpacity = nextOpacityMap[index];
+    if (cellOpacityCache[index] !== nextOpacity) {
+      cell.style.opacity = nextOpacity;
+      cellOpacityCache[index] = nextOpacity;
     }
   }
 }
@@ -992,6 +1007,34 @@ function renderSoulsSigilArrow(modeState) {
   soulsSigilArrowElement.classList.remove("hidden");
 }
 
+function renderSoulsStamina(modeState) {
+  if (!soulsStaminaElement || !soulsStaminaFillElement) {
+    return;
+  }
+
+  const showBar =
+    modeState &&
+    modeState.mode === "souls" &&
+    appElement.dataset.soulsUi === "immersive" &&
+    !modeState.isGameOver &&
+    !modeState.souls.reward;
+
+  soulsStaminaElement.classList.toggle("hidden", !showBar);
+  if (!showBar) {
+    soulsStaminaFillElement.style.width = "0%";
+    delete soulsStaminaElement.dataset.phase;
+    return;
+  }
+
+  const stamina = modeState.souls.stamina;
+  const max = Math.max(1, stamina?.max ?? 1);
+  const current = Math.max(0, Math.min(max, stamina?.current ?? max));
+  const percent = Math.round((current / max) * 100);
+
+  soulsStaminaElement.dataset.phase = stamina?.phase ?? "ready";
+  soulsStaminaFillElement.style.width = `${percent}%`;
+}
+
 function renderFloatingPause(modeState) {
   if (!floatingPauseButton) {
     return;
@@ -1028,6 +1071,22 @@ function stopTicker() {
   appState.soulsAccumulatorMs = 0;
   appState.soulsPendingDirection = null;
   appState.pressedDirections.clear();
+}
+
+function shouldRunSoulsRaf(modeState) {
+  if (!modeState || modeState.mode !== "souls") {
+    return false;
+  }
+
+  if (appState.screen === SCREEN_MENU || modeState.isGameOver || modeState.souls.reward) {
+    return false;
+  }
+
+  if (modeState.isPaused && modeState.souls.stageFlow?.phase === "idle") {
+    return false;
+  }
+
+  return true;
 }
 
 function startTicker(tickMs) {
@@ -1078,6 +1137,7 @@ function runSoulsFrame(timestamp) {
     deltaMs: frameDeltaMs,
     fixedStepMs: SOULS_FIXED_STEP_MS,
     maxStepsPerFrame: SOULS_MAX_STEPS_PER_FRAME,
+    dropOverflow: true,
   });
   appState.soulsAccumulatorMs = schedule.accumulatorAfterMs;
 
@@ -1106,7 +1166,11 @@ function runSoulsFrame(timestamp) {
   }
 
   render();
-  appState.soulsRafId = window.requestAnimationFrame(runSoulsFrame);
+  if (shouldRunSoulsRaf(appState.modeState)) {
+    appState.soulsRafId = window.requestAnimationFrame(runSoulsFrame);
+  } else {
+    appState.soulsRafId = null;
+  }
 }
 
 function startSoulsTicker() {
@@ -1116,7 +1180,7 @@ function startSoulsTicker() {
     appState.currentTickMs = null;
   }
 
-  if (appState.soulsRafId !== null) {
+  if (appState.soulsRafId !== null || !shouldRunSoulsRaf(appState.modeState)) {
     return;
   }
 
@@ -1132,7 +1196,14 @@ function ensureTickerState() {
   }
 
   if (appState.modeState.mode === "souls") {
-    startSoulsTicker();
+    if (shouldRunSoulsRaf(appState.modeState)) {
+      startSoulsTicker();
+    } else if (appState.soulsRafId !== null) {
+      window.cancelAnimationFrame(appState.soulsRafId);
+      appState.soulsRafId = null;
+      appState.soulsLastTs = null;
+      appState.soulsAccumulatorMs = 0;
+    }
     return;
   }
 
@@ -1359,6 +1430,7 @@ function render() {
   renderSoulsCountdown(modeState);
   renderSoulsStageMessage(modeState);
   renderSoulsSigilArrow(modeState);
+  renderSoulsStamina(modeState);
   renderFloatingPause(modeState);
   renderButtons(modeState);
   renderSoulsRewardModal();
@@ -1594,17 +1666,44 @@ if (themeToggle) {
 }
 
 for (const button of touchButtons) {
-  button.addEventListener("click", () => {
+  const direction = button.dataset.direction;
+  if (!direction) continue;
+
+  const pressDirection = (event) => {
+    if (event) {
+      event.preventDefault();
+    }
     if (!appState.modeState) return;
     if (appState.modeState.mode === "souls" && appState.modeState.souls.reward) {
       return;
     }
 
-    const direction = button.dataset.direction;
+    appState.pressedDirections.add(direction);
     if (appState.modeState.mode === "souls") {
       appState.soulsPendingDirection = direction;
     } else {
       appState.modeState = queueModeDirection(appState.modeState, direction);
+      ensureTickerState();
+    }
+  };
+
+  const releaseDirection = () => {
+    appState.pressedDirections.delete(direction);
+    if (appState.modeState && appState.modeState.mode !== "souls") {
+      ensureTickerState();
+    }
+  };
+
+  button.addEventListener("pointerdown", pressDirection);
+  button.addEventListener("pointerup", releaseDirection);
+  button.addEventListener("pointercancel", releaseDirection);
+  button.addEventListener("pointerleave", releaseDirection);
+
+  // Fallback for non-pointer environments.
+  button.addEventListener("click", (event) => {
+    if (!window.PointerEvent) {
+      pressDirection(event);
+      releaseDirection();
     }
   });
 }

@@ -40,6 +40,15 @@
   const SOULS_REENTRY_COOLDOWN_MS = 1200;
   const SOULS_MIN_VIEWPORT_ASPECT = 0.5;
   const SOULS_MAX_VIEWPORT_ASPECT = 2.5;
+  const STAMINA_MAX_BASE = 100;
+  const STAMINA_DRAIN_PER_SEC = 25;
+  const STAMINA_EXHAUST_MS = 1000;
+  const STAMINA_RECOVERY_MS_BASE = 12000;
+  const STAMINA_BOOST_MULT = 1.35;
+  const STAMINA_EXHAUST_MULT = 0.8;
+  const STAMINA_PHASE_READY = "ready";
+  const STAMINA_PHASE_EXHAUSTED = "exhausted";
+  const STAMINA_PHASE_RECOVERING = "recovering_lock";
 
   function keyForPosition(position) {
     return `${position.x},${position.y}`;
@@ -761,17 +770,165 @@
     return clamp(cps, 2, 18);
   }
 
-  function getSoulsSnakeSpeedCps(floor, stageType, souls, options = {}) {
+  function getSoulsSnakeNormalSpeedCps(floor, stageType, souls) {
     const baseCps = getSoulsSnakeBaseSpeedCps(floor, stageType, souls);
-    if (options.holdCurrentDirection) {
-      return baseCps;
-    }
-
     return clamp(baseCps * GLOBAL_SNAKE_SLOW_FACTOR, 2, 18);
   }
 
-  function getSoulsEnemySpeedCps(enemy, snakeSpeedCps) {
+  function getSoulsStaminaStats(souls) {
+    const adrenalineStacks = getPowerStack(souls, "adrenalina");
+    const max = STAMINA_MAX_BASE + adrenalineStacks * 20;
+    const recoveryMs = Math.max(
+      1000,
+      Math.round(STAMINA_RECOVERY_MS_BASE * Math.pow(0.85, adrenalineStacks))
+    );
+    const rechargeRate = max / (recoveryMs / 1000);
+    return {
+      max,
+      recoveryMs,
+      rechargeRate,
+    };
+  }
+
+  function createSoulsStaminaState(souls, options = {}) {
+    const stats = getSoulsStaminaStats(souls);
+    const current =
+      options.current === "max"
+        ? stats.max
+        : clamp(
+            Number(options.current ?? stats.max),
+            0,
+            stats.max
+          );
+    const phase =
+      options.phase === STAMINA_PHASE_EXHAUSTED
+        ? STAMINA_PHASE_EXHAUSTED
+        : options.phase === STAMINA_PHASE_RECOVERING
+        ? STAMINA_PHASE_RECOVERING
+        : STAMINA_PHASE_READY;
+    const exhaustedMsRemaining =
+      phase === STAMINA_PHASE_EXHAUSTED
+        ? Math.max(
+            0,
+            Math.floor(options.exhaustedMsRemaining ?? STAMINA_EXHAUST_MS)
+          )
+        : 0;
+    const lockMsRemaining =
+      phase === STAMINA_PHASE_RECOVERING
+        ? Math.max(
+            0,
+            Math.floor(options.lockMsRemaining ?? stats.recoveryMs)
+          )
+        : 0;
+
+    return {
+      current,
+      max: stats.max,
+      phase,
+      exhaustedMsRemaining,
+      lockMsRemaining,
+    };
+  }
+
+  function normalizeSoulsStaminaState(souls, stamina) {
+    const stats = getSoulsStaminaStats(souls);
+    const source = stamina ?? createSoulsStaminaState(souls, { current: "max" });
+    return {
+      current: clamp(Number(source.current ?? stats.max), 0, stats.max),
+      max: stats.max,
+      phase:
+        source.phase === STAMINA_PHASE_EXHAUSTED
+          ? STAMINA_PHASE_EXHAUSTED
+          : source.phase === STAMINA_PHASE_RECOVERING
+          ? STAMINA_PHASE_RECOVERING
+          : STAMINA_PHASE_READY,
+      exhaustedMsRemaining: Math.max(
+        0,
+        Math.floor(source.exhaustedMsRemaining ?? 0)
+      ),
+      lockMsRemaining: Math.max(0, Math.floor(source.lockMsRemaining ?? 0)),
+    };
+  }
+
+  function updateSoulsStaminaState(souls, deltaMs, wantsBoost) {
+    const stamina = normalizeSoulsStaminaState(souls, souls.stamina);
+    const stats = getSoulsStaminaStats(souls);
+    const dt = Math.max(0, deltaMs) / 1000;
+    let boostActive = false;
+
+    if (stamina.phase === STAMINA_PHASE_EXHAUSTED) {
+      stamina.exhaustedMsRemaining = Math.max(
+        0,
+        stamina.exhaustedMsRemaining - deltaMs
+      );
+      if (stamina.exhaustedMsRemaining <= 0) {
+        stamina.phase = STAMINA_PHASE_RECOVERING;
+        stamina.lockMsRemaining = stats.recoveryMs;
+      }
+    } else if (stamina.phase === STAMINA_PHASE_RECOVERING) {
+      stamina.lockMsRemaining = Math.max(0, stamina.lockMsRemaining - deltaMs);
+      stamina.current = clamp(
+        stamina.current + stats.rechargeRate * dt,
+        0,
+        stamina.max
+      );
+      if (stamina.lockMsRemaining <= 0 && stamina.current >= stamina.max - 0.0001) {
+        stamina.current = stamina.max;
+        stamina.phase = STAMINA_PHASE_READY;
+        stamina.lockMsRemaining = 0;
+      }
+    } else {
+      if (wantsBoost && stamina.current > 0) {
+        boostActive = true;
+        stamina.current = Math.max(0, stamina.current - STAMINA_DRAIN_PER_SEC * dt);
+        if (stamina.current <= 0) {
+          stamina.current = 0;
+          stamina.phase = STAMINA_PHASE_EXHAUSTED;
+          stamina.exhaustedMsRemaining = STAMINA_EXHAUST_MS;
+        }
+      } else {
+        stamina.current = clamp(
+          stamina.current + stats.rechargeRate * dt,
+          0,
+          stamina.max
+        );
+      }
+    }
+
+    souls.stamina = {
+      ...stamina,
+      max: stats.max,
+    };
+
+    return {
+      boostActive:
+        boostActive && souls.stamina.phase === STAMINA_PHASE_READY,
+      exhausted: souls.stamina.phase === STAMINA_PHASE_EXHAUSTED,
+    };
+  }
+
+  function getSoulsSnakeSpeedCps(floor, stageType, souls, options = {}) {
+    const normalCps = getSoulsSnakeNormalSpeedCps(floor, stageType, souls);
+    if (options.exhausted) {
+      return clamp(normalCps * STAMINA_EXHAUST_MULT, 1.5, 18);
+    }
+
+    if (options.boostActive) {
+      return clamp(normalCps * STAMINA_BOOST_MULT, 2, 24);
+    }
+
+    return normalCps;
+  }
+
+  function getSoulsEnemySpeedCps(enemy, speedRef) {
     if (!enemy) return 0;
+    const snakeBaseCps = speedRef?.snakeBaseCps ?? 0;
+    const snakeNormalCps = speedRef?.snakeNormalCps ?? snakeBaseCps;
+
+    // Boss 1 tracks snake normal speed; stamina boost creates escape windows.
+    if (enemy.id === "cacador") {
+      return clamp(snakeNormalCps, 1.2, 20);
+    }
 
     const styleMultiplier =
       enemy.style === "patrol"
@@ -783,7 +940,7 @@
         : 1;
 
     const cps =
-      (snakeSpeedCps / Math.max(1, enemy.moveEveryTicks ?? 1)) * styleMultiplier;
+      (snakeBaseCps / Math.max(1, enemy.moveEveryTicks ?? 1)) * styleMultiplier;
     return clamp(cps, 1.2, 16);
   }
 
@@ -1452,6 +1609,11 @@
       stage.stageType,
       state.souls
     );
+    const enemyNormalSnakeSpeedCps = getSoulsSnakeNormalSpeedCps(
+      floor,
+      stage.stageType,
+      state.souls
+    );
     const tickMs = Math.max(SoulsData.MIN_TICK_MS, Math.round(1000 / snakeSpeedCps));
 
     const echo =
@@ -1513,10 +1675,14 @@
       }),
       tickMs,
       snakeSpeedCps,
-      enemySpeedCps: getSoulsEnemySpeedCps(enemy, enemyBaseSnakeSpeedCps),
+      enemySpeedCps: getSoulsEnemySpeedCps(enemy, {
+        snakeBaseCps: enemyBaseSnakeSpeedCps,
+        snakeNormalCps: enemyNormalSnakeSpeedCps,
+      }),
       snakeMoveAccumulatorMs: 0,
       enemyMoveAccumulatorMs: 0,
       armorCharges: getSoulsArmorPerStage(state.souls),
+      stamina: createSoulsStaminaState(state.souls, { current: "max" }),
       countdownMsRemaining:
         initialStageFlow.phase === "countdown" ? initialStageFlow.msRemaining : 0,
     };
@@ -1637,6 +1803,10 @@
         snakeMoveAccumulatorMs: 0,
         enemyMoveAccumulatorMs: 0,
         armorCharges: 0,
+        stamina: createSoulsStaminaState(
+          { powers: {} },
+          { current: STAMINA_MAX_BASE }
+        ),
         ghostCooldownMs: 0,
         directionLockMsRemaining: 0,
         lastDeathRunes: 0,
@@ -1677,6 +1847,7 @@
     state.souls.snakeMoveAccumulatorMs = stageState.snakeMoveAccumulatorMs;
     state.souls.enemyMoveAccumulatorMs = stageState.enemyMoveAccumulatorMs;
     state.souls.armorCharges = stageState.armorCharges;
+    state.souls.stamina = stageState.stamina;
     state.souls.countdownMsRemaining = stageState.countdownMsRemaining;
     state.souls.viewportAspect = stageState.viewportAspect ?? viewportAspect;
 
@@ -2423,6 +2594,7 @@
         snakeMoveAccumulatorMs: stageState.snakeMoveAccumulatorMs,
         enemyMoveAccumulatorMs: stageState.enemyMoveAccumulatorMs,
         armorCharges: stageState.armorCharges,
+        stamina: stageState.stamina,
         countdownMsRemaining: stageState.countdownMsRemaining,
       },
     };
@@ -2434,7 +2606,11 @@
     }
 
     const rng = options.rng ?? Math.random;
-    const base = state.base;
+    const base = {
+      ...state.base,
+      snake: state.base.snake.map((segment) => ({ ...segment })),
+      food: state.base.food ? { ...state.base.food } : null,
+    };
     const souls = {
       ...state.souls,
       profile: SoulsProfile.sanitizeProfile(state.souls.profile),
@@ -2458,6 +2634,9 @@
       camera: state.souls.camera ? { ...state.souls.camera } : null,
       world: state.souls.world ?? null,
       viewportAspect: normalizeSoulsViewportAspect(state.souls.viewportAspect ?? 1),
+      stamina: state.souls.stamina
+        ? { ...state.souls.stamina }
+        : createSoulsStaminaState(state.souls, { current: "max" }),
       stageFlow: state.souls.stageFlow
         ? { ...state.souls.stageFlow }
         : createStageFlowState("idle"),
@@ -2491,20 +2670,9 @@
       };
     }
 
-    souls.snakeSpeedCps = getSoulsSnakeSpeedCps(
-      souls.floor,
-      souls.stageType,
-      souls
-    );
-    souls.enemySpeedCps = state.enemy
-      ? getSoulsEnemySpeedCps(
-          state.enemy,
-          getSoulsSnakeBaseSpeedCps(souls.floor, souls.stageType, souls)
-        )
-      : 0;
     const defaultDeltaMs = Math.max(
       state.tickMs,
-      1000 / Math.max(0.1, souls.snakeSpeedCps)
+      1000 / Math.max(0.1, getSoulsSnakeSpeedCps(souls.floor, souls.stageType, souls))
     );
     const deltaMs = Math.max(0, options.deltaMs ?? defaultDeltaMs);
     const holdCurrentDirection = options.holdCurrentDirection === true;
@@ -2565,6 +2733,35 @@
       );
     }
     souls.countdownMsRemaining = 0;
+
+    const staminaRuntime = updateSoulsStaminaState(
+      souls,
+      deltaMs,
+      holdCurrentDirection
+    );
+    souls.snakeSpeedCps = getSoulsSnakeSpeedCps(
+      souls.floor,
+      souls.stageType,
+      souls,
+      {
+        boostActive: staminaRuntime.boostActive,
+        exhausted: staminaRuntime.exhausted,
+      }
+    );
+    souls.enemySpeedCps = state.enemy
+      ? getSoulsEnemySpeedCps(state.enemy, {
+          snakeBaseCps: getSoulsSnakeBaseSpeedCps(
+            souls.floor,
+            souls.stageType,
+            souls
+          ),
+          snakeNormalCps: getSoulsSnakeNormalSpeedCps(
+            souls.floor,
+            souls.stageType,
+            souls
+          ),
+        })
+      : 0;
 
     reduceSoulsCooldowns(souls, deltaMs);
     souls.hazards = normalizeHazards(souls.hazards, deltaMs);
@@ -2887,6 +3084,16 @@
       },
       reward: null,
       rewardRerolled: false,
+      stamina: createSoulsStaminaState(
+        {
+          ...state.souls,
+          powers: {
+            ...state.souls.powers,
+            [powerId]: currentStacks + 1,
+          },
+        },
+        { current: "max" }
+      ),
       stageFlow: createStageFlowState("message", {
         message:
           state.souls.stageFlow?.message ??
