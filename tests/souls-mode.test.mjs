@@ -23,6 +23,45 @@ function createSouls() {
   });
 }
 
+function createSoulsMovementBenchmarkState() {
+  const state = createSouls();
+  state.souls.world = null;
+  state.barriers = [];
+  state.enemy = null;
+  state.souls.minions = [];
+  state.souls.hazards = [];
+  state.souls.objectiveType = "food";
+  state.souls.objectiveTarget = 999;
+  state.souls.objectiveProgress = 0;
+  state.base.food = { x: 9999, y: 9999 };
+  state.base.direction = "RIGHT";
+  state.base.pendingDirection = "RIGHT";
+  return state;
+}
+
+function simulateSoulsWindow(state, options = {}) {
+  const durationMs = Math.max(0, options.durationMs ?? 3000);
+  const stepMs = Math.max(1, options.stepMs ?? 16);
+  const holdCurrentDirection = options.holdCurrentDirection === true;
+  const rng = typeof options.rng === "function" ? options.rng : () => 0.31;
+  let remaining = durationMs;
+  let next = cloneState(state);
+  while (remaining > 0 && !next.isGameOver) {
+    const delta = Math.min(stepMs, remaining);
+    next = stepModeState(next, {
+      deltaMs: delta,
+      holdCurrentDirection,
+      rng,
+    });
+    remaining -= delta;
+  }
+  return next;
+}
+
+function getForwardDisplacementX(initialState, finalState) {
+  return finalState.base.snake[0].x - initialState.base.snake[0].x;
+}
+
 test("souls starts with infinite viewport state and camera", () => {
   const state = createSouls();
 
@@ -241,6 +280,32 @@ test("souls stamina drains on hold and enters exhaustion/lock", () => {
   assert.equal(Math.round(state.souls.stamina.current), state.souls.stamina.max);
 });
 
+test("souls hold boost increases real displacement over equal duration", () => {
+  const normalStart = createSoulsMovementBenchmarkState();
+  const boostStart = cloneState(normalStart);
+
+  const normalEnd = simulateSoulsWindow(normalStart, {
+    durationMs: 3000,
+    holdCurrentDirection: false,
+    stepMs: 16,
+    rng: () => 0.23,
+  });
+  const boostEnd = simulateSoulsWindow(boostStart, {
+    durationMs: 3000,
+    holdCurrentDirection: true,
+    stepMs: 16,
+    rng: () => 0.23,
+  });
+
+  const normalDisplacement = getForwardDisplacementX(normalStart, normalEnd);
+  const boostDisplacement = getForwardDisplacementX(boostStart, boostEnd);
+  assert.ok(normalDisplacement > 0);
+  assert.ok(
+    boostDisplacement >= normalDisplacement * 1.3,
+    `expected boost displacement >= 1.30x normal (${boostDisplacement} vs ${normalDisplacement})`
+  );
+});
+
 test("souls exhausted stamina slows snake below normal speed", () => {
   const normal = createSouls();
   normal.souls.world = null;
@@ -272,6 +337,39 @@ test("souls exhausted stamina slows snake below normal speed", () => {
   });
 
   assert.ok(exhaustedStep.souls.snakeSpeedCps < readyStep.souls.snakeSpeedCps);
+});
+
+test("souls exhausted phase reduces real displacement over equal duration", () => {
+  const normalStart = createSoulsMovementBenchmarkState();
+  const exhaustedStart = cloneState(normalStart);
+  exhaustedStart.souls.stamina = {
+    ...exhaustedStart.souls.stamina,
+    current: 0,
+    phase: "exhausted",
+    exhaustedMsRemaining: 900,
+    lockMsRemaining: 0,
+  };
+
+  const normalEnd = simulateSoulsWindow(normalStart, {
+    durationMs: 900,
+    holdCurrentDirection: false,
+    stepMs: 16,
+    rng: () => 0.19,
+  });
+  const exhaustedEnd = simulateSoulsWindow(exhaustedStart, {
+    durationMs: 900,
+    holdCurrentDirection: false,
+    stepMs: 16,
+    rng: () => 0.19,
+  });
+
+  const normalDisplacement = getForwardDisplacementX(normalStart, normalEnd);
+  const exhaustedDisplacement = getForwardDisplacementX(exhaustedStart, exhaustedEnd);
+  assert.ok(normalDisplacement > 0);
+  assert.ok(
+    exhaustedDisplacement <= normalDisplacement * 0.75,
+    `expected exhausted displacement <= 0.75x normal (${exhaustedDisplacement} vs ${normalDisplacement})`
+  );
 });
 
 test("adrenalina increases stamina max and recovery speed", () => {

@@ -44,8 +44,8 @@
   const STAMINA_DRAIN_PER_SEC = 25;
   const STAMINA_EXHAUST_MS = 1000;
   const STAMINA_RECOVERY_MS_BASE = 12000;
-  const STAMINA_BOOST_MULT = 1.35;
-  const STAMINA_EXHAUST_MULT = 0.8;
+  const STAMINA_BOOST_MULT = 1.6;
+  const STAMINA_EXHAUST_MULT = 0.65;
   const STAMINA_PHASE_READY = "ready";
   const STAMINA_PHASE_EXHAUSTED = "exhausted";
   const STAMINA_PHASE_RECOVERING = "recovering_lock";
@@ -2783,12 +2783,7 @@
     souls.camera = initialCamera.camera;
     let barriers = initialCamera.barriers;
 
-    const effectiveSnakeSpeedCps = getSoulsSnakeSpeedCps(
-      souls.floor,
-      souls.stageType,
-      souls,
-      { holdCurrentDirection }
-    );
+    const effectiveSnakeSpeedCps = souls.snakeSpeedCps;
     const snakeIntervalMs = 1000 / Math.max(0.1, effectiveSnakeSpeedCps);
     const enemyIntervalMs = getSoulsEnemyIntervalMs(souls);
     const shouldMoveSnake = souls.snakeMoveAccumulatorMs >= snakeIntervalMs;
