@@ -175,6 +175,21 @@
             <section class="game-area" aria-label="Snake game board">
               <div id="grid" class="grid" role="img" aria-label="Snake grid"></div>
               <div id="souls-countdown" class="souls-countdown hidden">3</div>
+              <div id="souls-stage-message" class="souls-stage-message hidden">
+                Estagio concluido
+              </div>
+              <div id="souls-sigil-arrow" class="souls-sigil-arrow hidden" aria-hidden="true">
+                <span class="souls-sigil-arrow-icon">&#10148;</span>
+                <small id="souls-sigil-distance">0</small>
+              </div>
+              <button
+                id="floating-pause-btn"
+                class="floating-pause-btn hidden"
+                type="button"
+                aria-label="Pause or resume"
+              >
+                Pause
+              </button>
             </section>
 
             <section class="actions" aria-label="Game actions">
@@ -229,6 +244,7 @@
     <script src="./src/snake-logic.js"></script>
     <script src="./src/souls-data.js"></script>
     <script src="./src/souls-profile.js"></script>
+    <script src="./src/souls-world.js"></script>
     <script src="./src/snake-modes.js"></script>
     <script src="./src/dev-codes.js"></script>
     <script src="./src/souls-loop.js"></script>

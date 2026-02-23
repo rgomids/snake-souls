@@ -58,7 +58,8 @@ php -S localhost:8000
 
 ### Controles on-screen/mobile
 - Menu inicial: selecione o modo pelos botões com ícones e clique em `Iniciar`.
-- Botões direcionais `Up/Left/Down/Right` abaixo do board.
+- No Souls em gameplay ativo: D-pad fixo e botão de pausa flutuante.
+- Fora do modo imersivo: botões direcionais `Up/Left/Down/Right` abaixo do board.
 - Botões de ação: `Pause`, `Restart`, `Back to menu`.
 
 ### Observação de velocidade (estado atual)
@@ -80,15 +81,19 @@ php -S localhost:8000
 
 ## Souls
 - Progressão por andares (`floor`) e ciclos.
+- Mundo infinito (sem colisão de borda) com câmera centralizada na cobra.
+- Viewport dinâmico por câmera com foco base `21` (normal) e `31` (boss/final), expandindo por proporção da tela para preencher o modo imersivo.
 - Bosses em floors `3`, `6`, `9`; boss final em `12`.
 - Após completar floor `12`, inicia próximo ciclo com escalada de dificuldade.
-- Troca de fase com countdown visual `3,2,1` (em transições de floor).
+- Conclusão de estágio: mensagem de conclusão + countdown visual `3,2,1`.
 
 ## 5) Sistemas do modo Souls
 
 ### Estrutura de fase
 - `normal`: objetivo por comida.
 - `boss` / `final_boss`: objetivo por coleta de sigilos.
+- Em boss, o sigilo nasce fora da tela (distância mínima) e uma seta indica a direção.
+- Em estágio normal, quando a comida estiver fora da viewport, a mesma seta aponta o objetivo.
 
 ### Runas
 - `carriedRunes` (em risco): acumuladas durante a run.
@@ -104,6 +109,7 @@ php -S localhost:8000
 - Após vitória de boss, abre modal com 3 poderes.
 - Escolha 1 poder para a build.
 - É possível reroll **1 vez** por boss, custo de `30` runas em risco.
+- Fluxo de transição: recompensa -> mensagem de estágio -> countdown -> próximo floor.
 
 ### Poderes e stacks
 Pool atual:
@@ -157,8 +163,8 @@ Contém:
 ## Área central
 - Menu inicial centralizado com botões de modo (ícones dedicados por opção)
 - Configuração de Souls (seleção de cobra/desbloqueio)
-- HUD de partida (score/status + dados específicos de modo)
-- Board do jogo
+- No Souls ativo: board em tela cheia com overlays (seta de sigilo, mensagem e countdown)
+- Em pause/game over Souls: HUD e sidebars retornam com animação de slide-in
 - Modal de recompensa
 
 ## Sidebar direita
@@ -230,6 +236,7 @@ Contém:
     ├── snake-logic.test.mjs
     ├── snake-modes.test.mjs
     ├── souls-mode.test.mjs
+    ├── souls-world.test.mjs
     ├── souls-profile.test.mjs
     ├── souls-loop.test.mjs
     ├── souls-ui-helpers.test.mjs

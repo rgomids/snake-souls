@@ -79,6 +79,10 @@ const soulsDeathSummaryElement = document.getElementById("souls-death-summary");
 const soulsDeathRunesElement = document.getElementById("souls-death-runes");
 const soulsDeathEchoElement = document.getElementById("souls-death-echo");
 const soulsCountdownElement = document.getElementById("souls-countdown");
+const soulsStageMessageElement = document.getElementById("souls-stage-message");
+const soulsSigilArrowElement = document.getElementById("souls-sigil-arrow");
+const soulsSigilDistanceElement = document.getElementById("souls-sigil-distance");
+const floatingPauseButton = document.getElementById("floating-pause-btn");
 const bossIntelListElement = document.getElementById("boss-intel-list");
 const devPanelElement = document.getElementById("dev-panel");
 const devCodeInputElement = document.getElementById("dev-code-input");
@@ -260,6 +264,50 @@ function setModeDataset() {
   appElement.dataset.mode = appState.modeState.mode;
 }
 
+function setSoulsUiDataset(modeState) {
+  const isImmersiveSouls =
+    modeState &&
+    modeState.mode === "souls" &&
+    appState.screen !== SCREEN_MENU &&
+    !modeState.isGameOver &&
+    !modeState.isPaused &&
+    !modeState.souls.reward;
+
+  appElement.dataset.soulsUi = isImmersiveSouls ? "immersive" : "panel";
+}
+
+function getViewportAspectRatio() {
+  const width = Math.max(1, window.innerWidth || 1);
+  const height = Math.max(1, window.innerHeight || 1);
+  return width / height;
+}
+
+function getSoulsViewportOrigin(modeState) {
+  if (!modeState || modeState.mode !== "souls") {
+    return { originX: 0, originY: 0 };
+  }
+
+  const camera = modeState.souls.camera ?? {
+    centerX: modeState.base.snake[0]?.x ?? 0,
+    centerY: modeState.base.snake[0]?.y ?? 0,
+  };
+  const originX = camera.centerX - Math.floor(modeState.base.width / 2);
+  const originY = camera.centerY - Math.floor(modeState.base.height / 2);
+  return { originX, originY };
+}
+
+function toRenderPosition(modeState, position, origin) {
+  if (!position) return null;
+  if (!modeState || modeState.mode !== "souls") {
+    return position;
+  }
+
+  return {
+    x: position.x - origin.originX,
+    y: position.y - origin.originY,
+  };
+}
+
 function ensureGrid(width, height) {
   if (gridWidth === width && gridHeight === height && cells.length > 0) {
     return;
@@ -289,8 +337,19 @@ function indexForPosition(position) {
   return position.y * gridWidth + position.x;
 }
 
+function isInsideGrid(position) {
+  if (!position) return false;
+  return (
+    position.x >= 0 &&
+    position.x < gridWidth &&
+    position.y >= 0 &&
+    position.y < gridHeight
+  );
+}
+
 function paintCell(position, className) {
   if (!position) return;
+  if (!isInsideGrid(position)) return;
   const cell = cells[indexForPosition(position)];
   if (!cell) return;
   cell.classList.add(className);
@@ -305,14 +364,27 @@ function resetGridStyles() {
 
 function renderBoard(modeState) {
   resetGridStyles();
+  const soulsOrigin = getSoulsViewportOrigin(modeState);
+
+  const paint = (worldPosition, className, extraClass = null) => {
+    const renderPosition = toRenderPosition(modeState, worldPosition, soulsOrigin);
+    if (!renderPosition) return;
+    if (!isInsideGrid(renderPosition)) return;
+    const cell = cells[indexForPosition(renderPosition)];
+    if (!cell) return;
+    cell.classList.add(className);
+    if (extraClass) {
+      cell.classList.add(extraClass);
+    }
+  };
 
   for (const barrier of modeState.barriers) {
-    paintCell(barrier, "barrier");
+    paint(barrier, "barrier");
   }
 
   if (modeState.mode === "souls") {
     for (const hazard of modeState.souls.hazards) {
-      paintCell(hazard, "hazard");
+      paint(hazard, "hazard");
     }
 
     // Fixed order: hazards first, then teleport telegraph, then entities.
@@ -322,26 +394,26 @@ function renderBoard(modeState) {
       const height = telegraph.height ?? telegraph.size ?? 1;
       for (let dy = 0; dy < height; dy += 1) {
         for (let dx = 0; dx < width; dx += 1) {
-          paintCell({ x: telegraph.x + dx, y: telegraph.y + dy }, "telegraph");
+          paint({ x: telegraph.x + dx, y: telegraph.y + dy }, "telegraph");
         }
       }
     }
 
     if (modeState.souls.sigil) {
-      paintCell(modeState.souls.sigil, "sigil");
+      paint(modeState.souls.sigil, "sigil");
     }
 
     if (modeState.souls.echo?.position) {
-      paintCell(modeState.souls.echo.position, "echo");
+      paint(modeState.souls.echo.position, "echo");
     }
   }
 
   if (modeState.base.food) {
-    paintCell(modeState.base.food, "food");
+    paint(modeState.base.food, "food");
   }
 
   if (modeState.powerUp) {
-    paintCell(modeState.powerUp, "power-up");
+    paint(modeState.powerUp, "power-up");
   }
 
   if (modeState.enemy) {
@@ -349,8 +421,14 @@ function renderBoard(modeState) {
     const enemyHeight = modeState.enemy.height ?? modeState.enemy.size ?? 1;
     for (let dy = 0; dy < enemyHeight; dy += 1) {
       for (let dx = 0; dx < enemyWidth; dx += 1) {
-        paintCell({ x: modeState.enemy.x + dx, y: modeState.enemy.y + dy }, "enemy");
+        paint({ x: modeState.enemy.x + dx, y: modeState.enemy.y + dy }, "enemy");
       }
+    }
+  }
+
+  if (modeState.mode === "souls" && Array.isArray(modeState.souls.minions)) {
+    for (const minion of modeState.souls.minions) {
+      paint(minion, "enemy", "minion");
     }
   }
 
@@ -359,8 +437,9 @@ function renderBoard(modeState) {
   const snakeLength = modeState.base.snake.length;
 
   for (let i = 0; i < modeState.base.snake.length; i += 1) {
-    const segment = modeState.base.snake[i];
-    const cell = cells[indexForPosition(segment)];
+    const segment = toRenderPosition(modeState, modeState.base.snake[i], soulsOrigin);
+    if (!isInsideGrid(segment)) continue;
+    const cell = segment ? cells[indexForPosition(segment)] : null;
     if (!cell) continue;
 
     cell.classList.add("snake");
@@ -511,6 +590,7 @@ function ensureSoulsModeForDev() {
     mode: "souls",
     soulsProfile: appState.soulsProfile,
     soulsSnakeId: appState.selectedSoulsSnakeId,
+    viewportAspect: getViewportAspectRatio(),
   });
   appState.rewardRenderKey = null;
   syncSoulsProfileFromModeState();
@@ -564,7 +644,9 @@ function runDevCodeCommand(parsed) {
 
   if (command === "SOULS_FLOOR") {
     ensureSoulsModeForDev();
-    appState.modeState = devSetSoulsFloor(appState.modeState, params.floor);
+    appState.modeState = devSetSoulsFloor(appState.modeState, params.floor, {
+      viewportAspect: getViewportAspectRatio(),
+    });
     appState.rewardRenderKey = null;
     syncSoulsProfileFromModeState();
     setScreen(SCREEN_PLAYING);
@@ -573,7 +655,9 @@ function runDevCodeCommand(parsed) {
 
   if (command === "SOULS_BOSS") {
     ensureSoulsModeForDev();
-    appState.modeState = devSetSoulsBoss(appState.modeState, params.bossSlot);
+    appState.modeState = devSetSoulsBoss(appState.modeState, params.bossSlot, {
+      viewportAspect: getViewportAspectRatio(),
+    });
     appState.rewardRenderKey = null;
     syncSoulsProfileFromModeState();
     setScreen(SCREEN_PLAYING);
@@ -692,6 +776,13 @@ function runDevCodeCommand(parsed) {
           source: appState.modeState.souls.stageType,
         },
         rewardRerolled: false,
+        stageFlow: {
+          ...(appState.modeState.souls.stageFlow ?? {}),
+          phase: "reward",
+          message: "Boss derrotado",
+          nextFloor: appState.modeState.souls.floor + 1,
+          msRemaining: 0,
+        },
       },
     };
     appState.rewardRenderKey = null;
@@ -852,6 +943,76 @@ function renderSoulsCountdown(modeState) {
   soulsCountdownElement.classList.remove("hidden");
 }
 
+function renderSoulsStageMessage(modeState) {
+  if (!soulsStageMessageElement) {
+    return;
+  }
+
+  if (!modeState || modeState.mode !== "souls") {
+    soulsStageMessageElement.classList.add("hidden");
+    return;
+  }
+
+  const stageFlow = modeState.souls.stageFlow;
+  if (!stageFlow || stageFlow.phase !== "message" || !stageFlow.message) {
+    soulsStageMessageElement.classList.add("hidden");
+    return;
+  }
+
+  soulsStageMessageElement.textContent = stageFlow.message;
+  soulsStageMessageElement.classList.remove("hidden");
+}
+
+function renderSoulsSigilArrow(modeState) {
+  if (!soulsSigilArrowElement) {
+    return;
+  }
+
+  if (!modeState || modeState.mode !== "souls") {
+    soulsSigilArrowElement.classList.add("hidden");
+    delete soulsSigilArrowElement.dataset.target;
+    return;
+  }
+
+  const indicator = modeState.souls.sigilIndicator;
+  if (!indicator?.visible) {
+    soulsSigilArrowElement.classList.add("hidden");
+    delete soulsSigilArrowElement.dataset.target;
+    return;
+  }
+
+  soulsSigilArrowElement.dataset.target =
+    modeState.souls.objectiveType === "food" ? "food" : "sigil";
+  soulsSigilArrowElement.style.left = `${indicator.leftPercent}%`;
+  soulsSigilArrowElement.style.top = `${indicator.topPercent}%`;
+  soulsSigilArrowElement.style.transform = `translate(-50%, -50%) rotate(${indicator.angleDeg}deg)`;
+  if (soulsSigilDistanceElement) {
+    soulsSigilDistanceElement.textContent = String(indicator.distance);
+  }
+  soulsSigilArrowElement.classList.remove("hidden");
+}
+
+function renderFloatingPause(modeState) {
+  if (!floatingPauseButton) {
+    return;
+  }
+
+  const showButton =
+    modeState &&
+    modeState.mode === "souls" &&
+    appState.screen !== SCREEN_MENU &&
+    !modeState.isGameOver &&
+    !modeState.souls.reward &&
+    appElement.dataset.soulsUi === "immersive";
+
+  floatingPauseButton.classList.toggle("hidden", !showButton);
+  if (!showButton) {
+    return;
+  }
+
+  floatingPauseButton.textContent = modeState.isPaused ? "Resume" : "Pause";
+}
+
 function stopTicker() {
   if (appState.tickerId !== null) {
     window.clearInterval(appState.tickerId);
@@ -933,6 +1094,7 @@ function runSoulsFrame(timestamp) {
       appState.modeState = stepModeState(appState.modeState, {
         deltaMs: SOULS_FIXED_STEP_MS,
         holdCurrentDirection: isHoldingCurrentDirection(),
+        viewportAspect: getViewportAspectRatio(),
       });
       syncSoulsProfileFromModeState();
 
@@ -1183,6 +1345,7 @@ function render() {
   setModeDataset();
 
   const modeState = appState.modeState;
+  setSoulsUiDataset(modeState);
   scoreElement.textContent = String(modeState ? modeState.base.score : 0);
   statusElement.textContent = getStatusText();
 
@@ -1194,6 +1357,9 @@ function render() {
   renderHud(modeState);
   renderSoulsDeathSummary(modeState);
   renderSoulsCountdown(modeState);
+  renderSoulsStageMessage(modeState);
+  renderSoulsSigilArrow(modeState);
+  renderFloatingPause(modeState);
   renderButtons(modeState);
   renderSoulsRewardModal();
   renderMenuModeOptions();
@@ -1209,6 +1375,7 @@ function startGame(mode) {
       mode,
       soulsProfile: appState.soulsProfile,
       soulsSnakeId: appState.selectedSoulsSnakeId,
+      viewportAspect: getViewportAspectRatio(),
     });
   } else {
     appState.modeState = createModeState({
@@ -1231,7 +1398,9 @@ function startGame(mode) {
 function restartGame() {
   if (!appState.modeState) return;
 
-  appState.modeState = restartModeState(appState.modeState);
+  appState.modeState = restartModeState(appState.modeState, {
+    viewportAspect: getViewportAspectRatio(),
+  });
   appState.soulsPendingDirection = null;
   appState.pressedDirections.clear();
   appState.rewardRenderKey = null;
@@ -1259,6 +1428,7 @@ function onTick() {
 
   appState.modeState = stepModeState(appState.modeState, {
     holdCurrentDirection: isHoldingCurrentDirection(),
+    viewportAspect: getViewportAspectRatio(),
   });
   syncSoulsProfileFromModeState();
 
@@ -1364,6 +1534,15 @@ pauseButton.addEventListener("click", () => {
   render();
   ensureTickerState();
 });
+
+if (floatingPauseButton) {
+  floatingPauseButton.addEventListener("click", () => {
+    if (!appState.modeState) return;
+    appState.modeState = toggleModePause(appState.modeState);
+    render();
+    ensureTickerState();
+  });
+}
 
 restartButton.addEventListener("click", () => {
   restartGame();
