@@ -69,8 +69,150 @@ test("floor 3 becomes boss stage with arena in boss range", () => {
   assert.equal(next.souls.floor, 3);
   assert.equal(next.souls.stageType, "boss");
   assert.equal(next.souls.objectiveType, "sigil");
+  assert.equal(next.souls.countdownMsRemaining, 3000);
   assert.ok(next.base.width >= 22 && next.base.width <= 24);
   assert.ok(next.base.height >= 22 && next.base.height <= 24);
+});
+
+test("countdown blocks movement until it reaches zero", () => {
+  const profile = SoulsProfile.createDefaultProfile();
+  const state = createModeState({ mode: "souls", soulsProfile: profile, rng: () => 0 });
+  const custom = {
+    ...state,
+    base: straightBase(20, 20, { x: 10, y: 10 }),
+    barriers: [],
+    enemy: null,
+    souls: {
+      ...state.souls,
+      countdownMsRemaining: 3000,
+      objectiveTarget: 999,
+      objectiveProgress: 0,
+      stageType: "normal",
+      objectiveType: "food",
+      hazards: [],
+      reward: null,
+      armorCharges: 0,
+    },
+  };
+
+  const next = stepModeState(custom, { rng: () => 0 });
+  assert.deepEqual(next.base.snake[0], custom.base.snake[0]);
+  assert.equal(next.souls.countdownMsRemaining < 3000, true);
+});
+
+test("movement resumes on tick after countdown expires", () => {
+  const profile = SoulsProfile.createDefaultProfile();
+  const state = createModeState({ mode: "souls", soulsProfile: profile, rng: () => 0 });
+  const custom = {
+    ...state,
+    base: straightBase(20, 20, { x: 10, y: 10 }),
+    barriers: [],
+    enemy: null,
+    souls: {
+      ...state.souls,
+      countdownMsRemaining: 100,
+      objectiveTarget: 999,
+      objectiveProgress: 0,
+      stageType: "normal",
+      objectiveType: "food",
+      hazards: [],
+      reward: null,
+      armorCharges: 0,
+    },
+  };
+
+  const afterCountdown = stepModeState(custom, { rng: () => 0 });
+  assert.deepEqual(afterCountdown.base.snake[0], custom.base.snake[0]);
+  assert.equal(afterCountdown.souls.countdownMsRemaining, 0);
+
+  const afterMove = stepModeState(afterCountdown, { rng: () => 0 });
+  assert.deepEqual(afterMove.base.snake[0], { x: custom.base.snake[0].x + 1, y: custom.base.snake[0].y });
+});
+
+test("caçador is 2x2 and has +1 move tick penalty", () => {
+  const profile = SoulsProfile.createDefaultProfile();
+  const state = createModeState({ mode: "souls", soulsProfile: profile, rng: () => 0 });
+  const custom = {
+    ...state,
+    base: straightBase(20, 20, { x: 3, y: 2 }),
+    barriers: [],
+    enemy: null,
+    souls: {
+      ...state.souls,
+      floor: 2,
+      stageType: "normal",
+      objectiveType: "food",
+      objectiveProgress: 0,
+      objectiveTarget: 1,
+      sigil: null,
+      hazards: [],
+      echo: null,
+      reward: null,
+      countdownMsRemaining: 0,
+    },
+  };
+
+  const next = stepModeState(custom, { rng: () => 0 });
+  assert.equal(next.souls.floor, 3);
+  assert.equal(next.enemy?.id, "cacador");
+  assert.equal(next.enemy?.size, 2);
+  assert.equal(next.enemy?.moveEveryTicks, 2);
+});
+
+test("collision with any caçador 2x2 cell is lethal", () => {
+  const profile = SoulsProfile.createDefaultProfile();
+  const state = createModeState({ mode: "souls", soulsProfile: profile, rng: () => 0 });
+  const custom = {
+    ...state,
+    base: {
+      ...straightBase(24, 24, null),
+      snake: [
+        { x: 4, y: 5 },
+        { x: 3, y: 5 },
+        { x: 2, y: 5 },
+      ],
+      direction: "RIGHT",
+      pendingDirection: "RIGHT",
+    },
+    barriers: [],
+    enemy: {
+      x: 4,
+      y: 4,
+      direction: "LEFT",
+      tickCounter: 0,
+      moveEveryTicks: 2,
+      hazardCounter: 0,
+      teleportCounter: 0,
+      patternCounter: 0,
+      id: "cacador",
+      style: "aggressive",
+      baseHazardEveryTicks: 0,
+      baseTeleportEveryTicks: 0,
+      size: 2,
+      speedPenaltyTicks: 1,
+    },
+    souls: {
+      ...state.souls,
+      floor: 3,
+      cycle: 1,
+      withinCycle: 3,
+      stageType: "boss",
+      bossOrdinal: 1,
+      bossName: "Caçador",
+      objectiveType: "sigil",
+      objectiveProgress: 0,
+      objectiveTarget: 999,
+      sigil: { x: 20, y: 20 },
+      hazards: [],
+      reward: null,
+      countdownMsRemaining: 0,
+      armorCharges: 0,
+      powers: {},
+    },
+  };
+
+  const next = stepModeState(custom, { rng: () => 0 });
+  assert.equal(next.isGameOver, true);
 });
 
 test("final boss completion grants reward and selecting it advances cycle", () => {

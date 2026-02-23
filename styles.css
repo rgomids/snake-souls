@@ -220,6 +220,7 @@ select {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
+  position: relative;
 }
 
 .grid {
@@ -377,6 +378,21 @@ button:disabled {
   justify-content: center;
   padding: 16px;
   z-index: 20;
+}
+
+.souls-countdown {
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(2.5rem, 10vw, 4.5rem);
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 5;
 }
 
 .souls-reward-card {

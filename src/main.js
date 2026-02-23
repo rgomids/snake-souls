@@ -64,6 +64,7 @@ const soulsRerollButton = document.getElementById("souls-reroll-btn");
 const soulsDeathSummaryElement = document.getElementById("souls-death-summary");
 const soulsDeathRunesElement = document.getElementById("souls-death-runes");
 const soulsDeathEchoElement = document.getElementById("souls-death-echo");
+const soulsCountdownElement = document.getElementById("souls-countdown");
 
 const initialSoulsProfile = loadSoulsProfileFromStorage();
 
@@ -278,7 +279,12 @@ function renderBoard(modeState) {
   }
 
   if (modeState.enemy) {
-    paintCell(modeState.enemy, "enemy");
+    const enemySize = modeState.enemy.size ?? 1;
+    for (let dy = 0; dy < enemySize; dy += 1) {
+      for (let dx = 0; dx < enemySize; dx += 1) {
+        paintCell({ x: modeState.enemy.x + dx, y: modeState.enemy.y + dy }, "enemy");
+      }
+    }
   }
 
   const variantClass =
@@ -359,6 +365,25 @@ function renderSoulsDeathSummary(modeState) {
   soulsDeathSummaryElement.classList.remove("hidden");
   soulsDeathRunesElement.textContent = String(modeState.souls.lastDeathRunes);
   soulsDeathEchoElement.textContent = String(modeState.souls.lastDeathEcho);
+}
+
+function renderSoulsCountdown(modeState) {
+  if (
+    !modeState ||
+    modeState.mode !== "souls" ||
+    !modeState.souls.countdownMsRemaining ||
+    modeState.souls.countdownMsRemaining <= 0
+  ) {
+    soulsCountdownElement.classList.add("hidden");
+    return;
+  }
+
+  const value = Math.max(
+    1,
+    Math.min(3, Math.ceil(modeState.souls.countdownMsRemaining / 1000))
+  );
+  soulsCountdownElement.textContent = String(value);
+  soulsCountdownElement.classList.remove("hidden");
 }
 
 function stopTicker() {
@@ -553,6 +578,7 @@ function render() {
 
   renderHud(modeState);
   renderSoulsDeathSummary(modeState);
+  renderSoulsCountdown(modeState);
   renderButtons(modeState);
   renderSoulsRewardModal();
   renderSoulsMenu();

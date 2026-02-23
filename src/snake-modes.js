@@ -19,6 +19,7 @@
   const SHIELD_DURATION_MS = 5000;
   const POWER_UP_TTL_TICKS = 60;
   const HAZARD_TTL_TICKS = 5;
+  const SOULS_COUNTDOWN_MS = 3000;
 
   function keyForPosition(position) {
     return `${position.x},${position.y}`;
@@ -49,6 +50,24 @@
 
   function containsPosition(positions, target) {
     return positions.some((position) => arePositionsEqual(position, target));
+  }
+
+  function getEnemyCells(enemy) {
+    if (!enemy) return [];
+
+    const size = enemy.size ?? 1;
+    const cells = [];
+    for (let dy = 0; dy < size; dy += 1) {
+      for (let dx = 0; dx < size; dx += 1) {
+        cells.push({ x: enemy.x + dx, y: enemy.y + dy });
+      }
+    }
+    return cells;
+  }
+
+  function enemyOccupiesPosition(enemy, position) {
+    if (!enemy || !position) return false;
+    return getEnemyCells(enemy).some((cell) => arePositionsEqual(cell, position));
   }
 
   function listAvailableCells(width, height, blockedKeys) {
@@ -643,7 +662,9 @@
     }
 
     if (enemy) {
-      blocked.add(keyForPosition(enemy));
+      for (const enemyCell of getEnemyCells(enemy)) {
+        blocked.add(keyForPosition(enemyCell));
+      }
     }
 
     for (const hazard of hazards) {
@@ -709,15 +730,42 @@
       blocked.add(safeKey);
     }
 
-    const position = pickRandomCell(base.width, base.height, blocked, rng);
-    if (!position) {
+    const size = bossDefinition.size ?? 1;
+    const candidates = [];
+    for (let y = 0; y <= base.height - size; y += 1) {
+      for (let x = 0; x <= base.width - size; x += 1) {
+        let canUse = true;
+        for (let dy = 0; dy < size; dy += 1) {
+          for (let dx = 0; dx < size; dx += 1) {
+            const cellKey = `${x + dx},${y + dy}`;
+            if (blocked.has(cellKey)) {
+              canUse = false;
+              break;
+            }
+          }
+          if (!canUse) break;
+        }
+        if (canUse) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
       return null;
     }
+
+    const chosenIndex = clampIndex(
+      Math.floor(rng() * candidates.length),
+      candidates.length
+    );
+    const position = candidates[chosenIndex];
 
     const cycle = SoulsData.getCycle(floor);
     const moveEveryTicks = Math.max(
       1,
-      Math.round(bossDefinition.moveEveryTicks / Math.max(1, cycle * 0.22))
+      Math.round(bossDefinition.moveEveryTicks / Math.max(1, cycle * 0.22)) +
+        (bossDefinition.speedPenaltyTicks ?? 0)
     );
 
     return {
@@ -733,6 +781,8 @@
       style: bossDefinition.style,
       baseHazardEveryTicks: bossDefinition.hazardEveryTicks,
       baseTeleportEveryTicks: bossDefinition.teleportEveryTicks,
+      size,
+      speedPenaltyTicks: bossDefinition.speedPenaltyTicks ?? 0,
     };
   }
 
@@ -767,7 +817,7 @@
     souls.ghostCooldownMs = SoulsData.GHOST_COOLDOWN_MS;
   }
 
-  function createSoulsStageState(state, floor, rng) {
+  function createSoulsStageState(state, floor, rng, options = {}) {
     const stage = getStageDescriptor(floor);
     const snakeDefinition = getSnakeDefinition(state.souls);
     const arena = SoulsData.getArenaSize(
@@ -849,6 +899,8 @@
       echo,
       tickMs,
       armorCharges: getSoulsArmorPerStage(state.souls),
+      countdownMsRemaining:
+        options.includeCountdown === true ? SOULS_COUNTDOWN_MS : 0,
     };
   }
 
@@ -934,10 +986,13 @@
         directionLockTicks: 0,
         lastDeathRunes: 0,
         lastDeathEcho: 0,
+        countdownMsRemaining: 0,
       },
     };
 
-    const stageState = createSoulsStageState(state, 1, rng);
+    const stageState = createSoulsStageState(state, 1, rng, {
+      includeCountdown: false,
+    });
 
     state.base = stageState.base;
     state.tickMs = stageState.tickMs;
@@ -956,6 +1011,7 @@
     state.souls.hazards = stageState.hazards;
     state.souls.echo = stageState.echo;
     state.souls.armorCharges = stageState.armorCharges;
+    state.souls.countdownMsRemaining = stageState.countdownMsRemaining;
 
     return state;
   }
@@ -1059,12 +1115,13 @@
   function addHazardPulse(base, enemy, hazards) {
     if (!enemy) return hazards;
 
-    const candidates = [
-      { x: enemy.x - 1, y: enemy.y },
-      { x: enemy.x + 1, y: enemy.y },
-      { x: enemy.x, y: enemy.y - 1 },
-      { x: enemy.x, y: enemy.y + 1 },
-    ];
+    const candidates = [];
+    for (const enemyCell of getEnemyCells(enemy)) {
+      candidates.push({ x: enemyCell.x - 1, y: enemyCell.y });
+      candidates.push({ x: enemyCell.x + 1, y: enemyCell.y });
+      candidates.push({ x: enemyCell.x, y: enemyCell.y - 1 });
+      candidates.push({ x: enemyCell.x, y: enemyCell.y + 1 });
+    }
 
     const next = [...hazards];
     for (const candidate of candidates) {
@@ -1094,25 +1151,33 @@
     return "UP";
   }
 
-  function canEnemyMoveTo(base, candidate, barriers, hazards) {
-    if (isOutOfBounds(base, candidate)) {
-      return false;
-    }
+  function canEnemyMoveTo(base, candidate, enemy, barriers, hazards) {
+    const nextEnemy = {
+      ...enemy,
+      x: candidate.x,
+      y: candidate.y,
+    };
 
-    if (containsPosition(base.snake.slice(1), candidate)) {
-      return false;
-    }
+    for (const enemyCell of getEnemyCells(nextEnemy)) {
+      if (isOutOfBounds(base, enemyCell)) {
+        return false;
+      }
 
-    if (containsPosition(barriers, candidate)) {
-      return false;
-    }
+      if (containsPosition(base.snake.slice(1), enemyCell)) {
+        return false;
+      }
 
-    if (containsPosition(hazards, candidate)) {
-      return false;
-    }
+      if (containsPosition(barriers, enemyCell)) {
+        return false;
+      }
 
-    if (base.food && arePositionsEqual(base.food, candidate)) {
-      return false;
+      if (containsPosition(hazards, enemyCell)) {
+        return false;
+      }
+
+      if (base.food && arePositionsEqual(base.food, enemyCell)) {
+        return false;
+      }
     }
 
     return true;
@@ -1120,12 +1185,38 @@
 
   function teleportEnemy(enemy, base, barriers, hazards, sigil, echo, rng) {
     const blocked = makeBlockedSet(base, barriers, enemy, hazards, sigil, echo);
-    blocked.delete(keyForPosition(enemy));
+    for (const currentCell of getEnemyCells(enemy)) {
+      blocked.delete(keyForPosition(currentCell));
+    }
 
-    const position = pickRandomCell(base.width, base.height, blocked, rng);
-    if (!position) {
+    const candidates = [];
+    const size = enemy.size ?? 1;
+    for (let y = 0; y <= base.height - size; y += 1) {
+      for (let x = 0; x <= base.width - size; x += 1) {
+        let canUse = true;
+        for (let dy = 0; dy < size; dy += 1) {
+          for (let dx = 0; dx < size; dx += 1) {
+            const cellKey = `${x + dx},${y + dy}`;
+            if (blocked.has(cellKey)) {
+              canUse = false;
+              break;
+            }
+          }
+          if (!canUse) break;
+        }
+        if (canUse) {
+          candidates.push({ x, y });
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
       return enemy;
     }
+
+    const position = candidates[
+      clampIndex(Math.floor(rng() * candidates.length), candidates.length)
+    ];
 
     return {
       ...enemy,
@@ -1178,7 +1269,7 @@
           x: nextEnemy.x + vector.x,
           y: nextEnemy.y + vector.y,
         };
-        if (canEnemyMoveTo(base, candidate, barriers, hazards)) {
+        if (canEnemyMoveTo(base, candidate, nextEnemy, barriers, hazards)) {
           nextEnemy.x = candidate.x;
           nextEnemy.y = candidate.y;
           nextEnemy.direction = direction;
@@ -1200,7 +1291,7 @@
         x: nextEnemy.x + vector.x,
         y: nextEnemy.y + vector.y,
       };
-      if (!canEnemyMoveTo(base, candidate, barriers, hazards)) {
+      if (!canEnemyMoveTo(base, candidate, nextEnemy, barriers, hazards)) {
         continue;
       }
 
@@ -1315,7 +1406,9 @@
       },
     };
 
-    const stageState = createSoulsStageState(workingState, floor, rng);
+    const stageState = createSoulsStageState(workingState, floor, rng, {
+      includeCountdown: true,
+    });
 
     return {
       ...workingState,
@@ -1346,6 +1439,7 @@
         hazards: stageState.hazards,
         echo: stageState.echo,
         armorCharges: stageState.armorCharges,
+        countdownMsRemaining: stageState.countdownMsRemaining,
       },
     };
   }
@@ -1372,6 +1466,18 @@
           }
         : null,
     };
+
+    if (souls.countdownMsRemaining > 0) {
+      souls.countdownMsRemaining = Math.max(
+        0,
+        souls.countdownMsRemaining - state.tickMs
+      );
+
+      return {
+        ...state,
+        souls,
+      };
+    }
 
     reduceSoulsCooldowns(souls, state.tickMs);
     souls.hazards = normalizeHazards(souls.hazards);
@@ -1427,7 +1533,7 @@
     };
 
     const hitBarrier = containsPosition(state.barriers, nextHead);
-    const hitEnemy = state.enemy && arePositionsEqual(state.enemy, nextHead);
+    const hitEnemy = enemyOccupiesPosition(state.enemy, nextHead);
     const hitHazard = containsPosition(souls.hazards, nextHead);
 
     if ((hitBarrier || hitEnemy || hitHazard) && !tryMitigateSoulsCollision(souls)) {
@@ -1500,7 +1606,7 @@
       }
     }
 
-    const enemyHitAfterMove = enemy && arePositionsEqual(enemy, nextBase.snake[0]);
+    const enemyHitAfterMove = enemyOccupiesPosition(enemy, nextBase.snake[0]);
     const hazardHitAfterMove = containsPosition(souls.hazards, nextBase.snake[0]);
     if ((enemyHitAfterMove || hazardHitAfterMove) && !tryMitigateSoulsCollision(souls)) {
       return createSoulsGameOver(

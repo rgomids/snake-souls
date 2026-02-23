@@ -108,6 +108,8 @@
       hazardEveryTicks: 0,
       teleportEveryTicks: 0,
       style: "aggressive",
+      size: 2,
+      speedPenaltyTicks: 1,
     }),
     2: Object.freeze({
       id: "carcereiro",
@@ -116,6 +118,8 @@
       hazardEveryTicks: 6,
       teleportEveryTicks: 0,
       style: "patrol",
+      size: 1,
+      speedPenaltyTicks: 0,
     }),
     3: Object.freeze({
       id: "espectro",
@@ -124,6 +128,8 @@
       hazardEveryTicks: 0,
       teleportEveryTicks: 8,
       style: "phase",
+      size: 1,
+      speedPenaltyTicks: 0,
     }),
     final: Object.freeze({
       id: "abissal",
@@ -132,6 +138,8 @@
       hazardEveryTicks: 5,
       teleportEveryTicks: 9,
       style: "mixed",
+      size: 1,
+      speedPenaltyTicks: 0,
     }),
   });
 
