@@ -5,6 +5,7 @@
   const DEFAULT_SNAKE_ID = "basica";
   const UNLOCK_ORDER = Object.freeze(["veloz", "tanque", "vidente"]);
   const UNLOCK_COSTS = Object.freeze([120, 220, 360]);
+  const GLOBAL_SNAKE_SLOW_FACTOR = 0.88;
 
   const SNAKES = Object.freeze([
     Object.freeze({
@@ -108,6 +109,8 @@
       hazardEveryTicks: 0,
       teleportEveryTicks: 0,
       style: "aggressive",
+      width: 2,
+      height: 2,
       size: 2,
       speedPenaltyTicks: 1,
     }),
@@ -118,7 +121,9 @@
       hazardEveryTicks: 6,
       teleportEveryTicks: 0,
       style: "patrol",
-      size: 1,
+      width: 2,
+      height: 2,
+      size: 2,
       speedPenaltyTicks: 0,
     }),
     3: Object.freeze({
@@ -128,8 +133,10 @@
       hazardEveryTicks: 0,
       teleportEveryTicks: 8,
       style: "phase",
-      size: 1,
-      speedPenaltyTicks: 0,
+      width: 2,
+      height: 2,
+      size: 2,
+      speedPenaltyTicks: 1,
     }),
     final: Object.freeze({
       id: "abissal",
@@ -138,8 +145,42 @@
       hazardEveryTicks: 5,
       teleportEveryTicks: 9,
       style: "mixed",
-      size: 1,
+      width: 3,
+      height: 2,
       speedPenaltyTicks: 0,
+    }),
+  });
+
+  const BOSS_INTEL = Object.freeze({
+    cacador: Object.freeze({
+      id: "cacador",
+      name: "Caçador",
+      mechanic: "Persegue agressivamente a cabeça da cobra.",
+      size: "2x2",
+      reward: "Boss comum: +40 runas e escolha de poder.",
+    }),
+    carcereiro: Object.freeze({
+      id: "carcereiro",
+      name: "Carcereiro",
+      mechanic:
+        "Patrulha com pulsos de hazard; persegue se a cabeça ficar a 3 blocos.",
+      size: "2x2",
+      reward: "Boss comum: +40 runas e escolha de poder.",
+    }),
+    espectro: Object.freeze({
+      id: "espectro",
+      name: "Espectro",
+      mechanic: "Fase móvel com teleporte periódico para pressionar rota.",
+      size: "2x2",
+      reward: "Boss comum: +40 runas e escolha de poder.",
+    }),
+    abissal: Object.freeze({
+      id: "abissal",
+      name: "Abissal",
+      mechanic: "Alterna padrões e acelera a pressão com hazards e teleporte.",
+      size: "3x2",
+      reward:
+        "Boss final: +120 runas, escolha de poder e progresso de desbloqueio.",
     }),
   });
 
@@ -166,6 +207,8 @@
   const REROLL_COST = 30;
   const MIN_TICK_MS = 55;
   const GHOST_COOLDOWN_MS = 15000;
+  const ESPECTRO_TELEPORT_PREVIEW_MS = 1000;
+  const ESPECTRO_TELEPORT_MAX_DISTANCE = 3;
 
   function getSnakeById(snakeId) {
     return SNAKES.find((snake) => snake.id === snakeId) ?? SNAKES[0];
@@ -287,15 +330,19 @@
     DEFAULT_SNAKE_ID,
     UNLOCK_ORDER,
     UNLOCK_COSTS,
+    GLOBAL_SNAKE_SLOW_FACTOR,
     SNAKES,
     POWER_POOL,
     BOSS_DEFINITIONS,
+    BOSS_INTEL,
     ARENA_RANGES,
     TICK_BASE_BY_STAGE,
     RUNE_REWARDS,
     REROLL_COST,
     MIN_TICK_MS,
     GHOST_COOLDOWN_MS,
+    ESPECTRO_TELEPORT_PREVIEW_MS,
+    ESPECTRO_TELEPORT_MAX_DISTANCE,
     getSnakeById,
     getPowerById,
     getPowerMaxStacks,

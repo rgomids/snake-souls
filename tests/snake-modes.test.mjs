@@ -83,7 +83,7 @@ test("levels mode starts with level 1 defaults", () => {
 
   assert.equal(state.level, 1);
   assert.equal(state.levelTarget, 5);
-  assert.equal(state.tickMs, 130);
+  assert.equal(state.tickMs, 148);
   assert.deepEqual(state.barriers, []);
   assert.equal(state.enemy, null);
 });
@@ -118,10 +118,26 @@ test("levels mode advances and recalculates difficulty on target completion", ()
   assert.equal(next.level, 2);
   assert.equal(next.levelProgress, 0);
   assert.equal(next.levelTarget, 7);
-  assert.equal(next.tickMs, 125);
+  assert.equal(next.tickMs, 142);
   assert.equal(next.barriers.length, 3);
   assert.equal(next.enemy, null);
   assert.equal(next.isGameOver, false);
+});
+
+test("holding current direction restores pre-slow tick in traditional and levels", () => {
+  const traditional = createModeState({ mode: "traditional", width: 8, height: 8, rng: () => 0 });
+  const traditionalStep = stepModeState(traditional, {
+    rng: () => 0,
+    holdCurrentDirection: true,
+  });
+  assert.equal(traditionalStep.tickMs, 120);
+
+  const levels = createModeState({ mode: "levels", width: 20, height: 20, rng: () => 0 });
+  const levelsStep = stepModeState(levels, {
+    rng: () => 0,
+    holdCurrentDirection: true,
+  });
+  assert.equal(levelsStep.tickMs, 130);
 });
 
 test("barrier collision without shield causes game over", () => {

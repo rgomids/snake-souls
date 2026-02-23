@@ -15,11 +15,20 @@
     throw new Error("SnakeModes requires SnakeLogic.");
   }
 
-  const TRADITIONAL_TICK_MS = 120;
+  const TRADITIONAL_BASE_TICK_MS = 120;
+  const GLOBAL_SNAKE_SLOW_FACTOR = SoulsData?.GLOBAL_SNAKE_SLOW_FACTOR ?? 0.88;
+  const TRADITIONAL_TICK_MS = Math.max(
+    1,
+    Math.round(TRADITIONAL_BASE_TICK_MS / GLOBAL_SNAKE_SLOW_FACTOR)
+  );
   const SHIELD_DURATION_MS = 5000;
   const POWER_UP_TTL_TICKS = 60;
-  const HAZARD_TTL_TICKS = 5;
+  const HAZARD_TTL_MS = 500;
   const SOULS_COUNTDOWN_MS = 3000;
+  const ESPECTRO_TELEPORT_PREVIEW_MS =
+    SoulsData?.ESPECTRO_TELEPORT_PREVIEW_MS ?? 1000;
+  const ESPECTRO_TELEPORT_MAX_DISTANCE =
+    SoulsData?.ESPECTRO_TELEPORT_MAX_DISTANCE ?? 3;
 
   function keyForPosition(position) {
     return `${position.x},${position.y}`;
@@ -44,6 +53,21 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  function getEnemyFootprint(enemy) {
+    if (!enemy) {
+      return { width: 1, height: 1 };
+    }
+
+    return {
+      width: Math.max(1, enemy.width ?? enemy.size ?? 1),
+      height: Math.max(1, enemy.height ?? enemy.size ?? 1),
+    };
+  }
+
+  function applyGlobalSlowdownToTickMs(tickMs) {
+    return Math.max(1, Math.round(tickMs / GLOBAL_SNAKE_SLOW_FACTOR));
+  }
+
   function arePositionsEqual(a, b) {
     return SnakeLogic.arePositionsEqual(a, b);
   }
@@ -55,11 +79,34 @@
   function getEnemyCells(enemy) {
     if (!enemy) return [];
 
-    const size = enemy.size ?? 1;
+    const footprint = getEnemyFootprint(enemy);
     const cells = [];
-    for (let dy = 0; dy < size; dy += 1) {
-      for (let dx = 0; dx < size; dx += 1) {
+    for (let dy = 0; dy < footprint.height; dy += 1) {
+      for (let dx = 0; dx < footprint.width; dx += 1) {
         cells.push({ x: enemy.x + dx, y: enemy.y + dy });
+      }
+    }
+    return cells;
+  }
+
+  function getTeleportPreviewCells(preview) {
+    if (!preview) return [];
+    const width = Math.max(1, preview.width ?? preview.size ?? 1);
+    const height = Math.max(1, preview.height ?? preview.size ?? 1);
+    const cells = [];
+    for (let dy = 0; dy < height; dy += 1) {
+      for (let dx = 0; dx < width; dx += 1) {
+        cells.push({ x: preview.x + dx, y: preview.y + dy });
+      }
+    }
+    return cells;
+  }
+
+  function getAnchoredEnemyCells(anchor, footprint) {
+    const cells = [];
+    for (let dy = 0; dy < footprint.height; dy += 1) {
+      for (let dx = 0; dx < footprint.width; dx += 1) {
+        cells.push({ x: anchor.x + dx, y: anchor.y + dy });
       }
     }
     return cells;
@@ -100,8 +147,17 @@
     return 5 + (level - 1) * 2;
   }
 
-  function getTickMs(level) {
+  function getBaseLevelTickMs(level) {
     return Math.max(70, 130 - (level - 1) * 5);
+  }
+
+  function getTickMs(level, options = {}) {
+    const baseTickMs = getBaseLevelTickMs(level);
+    if (options.holdCurrentDirection) {
+      return baseTickMs;
+    }
+
+    return applyGlobalSlowdownToTickMs(baseTickMs);
   }
 
   function getBarrierCount(level) {
@@ -475,9 +531,10 @@
     };
     let isGameOver = false;
     let level = state.level;
+    const holdCurrentDirection = options.holdCurrentDirection === true;
     let levelProgress = state.levelProgress + (willEatFood ? 1 : 0);
     let levelTarget = state.levelTarget;
-    let tickMs = state.tickMs;
+    let tickMs = getTickMs(level, { holdCurrentDirection });
     let barriers = clonePositions(state.barriers);
     let enemy = state.enemy ? { ...state.enemy } : null;
     let powerUp = state.powerUp ? { ...state.powerUp } : null;
@@ -524,7 +581,7 @@
       level += 1;
       levelProgress = 0;
       levelTarget = getLevelTarget(level);
-      tickMs = getTickMs(level);
+      tickMs = getTickMs(level, { holdCurrentDirection });
       const regenerated = regenerateLevelLayout(nextBase, level, rng);
       barriers = regenerated.barriers;
       enemy = regenerated.enemy;
@@ -567,6 +624,30 @@
     return manhattanDistance(head, target) <= range;
   }
 
+  function getEnemyDistanceToPosition(enemy, target) {
+    if (!enemy || !target) {
+      return Infinity;
+    }
+
+    let minDistance = Infinity;
+    for (const cell of getEnemyCells(enemy)) {
+      minDistance = Math.min(minDistance, manhattanDistance(cell, target));
+    }
+    return minDistance;
+  }
+
+  function getAnchorDistanceToPosition(anchor, footprint, target) {
+    if (!anchor || !target) {
+      return Infinity;
+    }
+
+    let minDistance = Infinity;
+    for (const cell of getAnchoredEnemyCells(anchor, footprint)) {
+      minDistance = Math.min(minDistance, manhattanDistance(cell, target));
+    }
+    return minDistance;
+  }
+
   function getPowerStack(souls, powerId) {
     return souls.powers[powerId] ?? 0;
   }
@@ -596,17 +677,66 @@
     return amount;
   }
 
-  function getSoulsTickMs(floor, stageType, souls) {
+  function getSoulsSnakeBaseSpeedCps(floor, stageType, souls) {
     const cycle = SoulsData.getCycle(floor);
     const snake = getSnakeDefinition(souls);
     const folegoStacks = getPowerStack(souls, "folego");
+    const baseByStage =
+      stageType === "normal" ? 6 : stageType === "boss" ? 7 : 8;
 
-    let tick = SoulsData.getBaseTickMs(stageType);
-    tick = tick / SoulsData.getDifficultyScale(cycle);
-    tick *= snake?.tickMultiplier ?? 1;
-    tick *= Math.pow(0.95, folegoStacks);
+    let cps = baseByStage * Math.pow(SoulsData.getDifficultyScale(cycle), 0.65);
+    cps *= 1 / (snake?.tickMultiplier ?? 1);
+    cps *= Math.pow(1.05, folegoStacks);
 
-    return Math.max(SoulsData.MIN_TICK_MS, Math.round(tick));
+    return clamp(cps, 2, 18);
+  }
+
+  function getSoulsSnakeSpeedCps(floor, stageType, souls, options = {}) {
+    const baseCps = getSoulsSnakeBaseSpeedCps(floor, stageType, souls);
+    if (options.holdCurrentDirection) {
+      return baseCps;
+    }
+
+    return clamp(baseCps * GLOBAL_SNAKE_SLOW_FACTOR, 2, 18);
+  }
+
+  function getSoulsEnemySpeedCps(enemy, snakeSpeedCps) {
+    if (!enemy) return 0;
+
+    const styleMultiplier =
+      enemy.style === "patrol"
+        ? 0.9
+        : enemy.style === "phase"
+        ? 0.95
+        : enemy.style === "mixed"
+        ? 1.1
+        : 1;
+
+    const cps =
+      (snakeSpeedCps / Math.max(1, enemy.moveEveryTicks ?? 1)) * styleMultiplier;
+    return clamp(cps, 1.2, 16);
+  }
+
+  function getSoulsTickMs(floor, stageType, souls) {
+    const snakeSpeedCps = getSoulsSnakeSpeedCps(floor, stageType, souls);
+    return Math.max(SoulsData.MIN_TICK_MS, Math.round(1000 / snakeSpeedCps));
+  }
+
+  function getSoulsSnakeIntervalMs(souls) {
+    return 1000 / Math.max(0.1, souls.snakeSpeedCps || 1);
+  }
+
+  function getSoulsEnemyIntervalMs(souls) {
+    if (!souls.enemySpeedCps || souls.enemySpeedCps <= 0) {
+      return Infinity;
+    }
+    return 1000 / souls.enemySpeedCps;
+  }
+
+  function getSoulsSigilRespawnMs(souls) {
+    const snake = getSnakeDefinition(souls);
+    const factor = snake?.sigilSpawnFactor ?? 1;
+    return Math.max(100, Math.round(getSoulsSnakeIntervalMs(souls) * 4 * factor));
   }
 
   function getSoulsBarrierCount(base, floor, stageType) {
@@ -654,7 +784,15 @@
     return barriers;
   }
 
-  function makeBlockedSet(base, barriers, enemy, hazards, sigil, echo) {
+  function makeBlockedSet(
+    base,
+    barriers,
+    enemy,
+    hazards,
+    sigil,
+    echo,
+    enemyTeleportPreview
+  ) {
     const blocked = occupiedKeysFromSnake(base);
 
     for (const barrier of barriers) {
@@ -679,28 +817,84 @@
       blocked.add(keyForPosition(echo.position));
     }
 
+    if (enemyTeleportPreview) {
+      for (const previewCell of getTeleportPreviewCells(enemyTeleportPreview)) {
+        blocked.add(keyForPosition(previewCell));
+      }
+    }
+
     return blocked;
   }
 
-  function spawnSoulsFood(base, barriers, enemy, hazards, sigil, echo, rng) {
-    const blocked = makeBlockedSet(base, barriers, enemy, hazards, sigil, echo);
+  function spawnSoulsFood(
+    base,
+    barriers,
+    enemy,
+    hazards,
+    sigil,
+    echo,
+    rng,
+    enemyTeleportPreview = null
+  ) {
+    const blocked = makeBlockedSet(
+      base,
+      barriers,
+      enemy,
+      hazards,
+      sigil,
+      echo,
+      enemyTeleportPreview
+    );
     return pickRandomCell(base.width, base.height, blocked, rng);
   }
 
-  function spawnSoulsSigil(base, barriers, enemy, hazards, echo, rng) {
-    const blocked = makeBlockedSet(base, barriers, enemy, hazards, null, echo);
+  function spawnSoulsSigil(
+    base,
+    barriers,
+    enemy,
+    hazards,
+    echo,
+    rng,
+    enemyTeleportPreview = null
+  ) {
+    const blocked = makeBlockedSet(
+      base,
+      barriers,
+      enemy,
+      hazards,
+      null,
+      echo,
+      enemyTeleportPreview
+    );
     if (base.food) {
       blocked.add(keyForPosition(base.food));
     }
     return pickRandomCell(base.width, base.height, blocked, rng);
   }
 
-  function spawnSoulsEcho(base, barriers, enemy, hazards, sigil, pendingEcho, rng) {
+  function spawnSoulsEcho(
+    base,
+    barriers,
+    enemy,
+    hazards,
+    sigil,
+    pendingEcho,
+    rng,
+    enemyTeleportPreview = null
+  ) {
     if (!pendingEcho || pendingEcho.runes <= 0) {
       return null;
     }
 
-    const blocked = makeBlockedSet(base, barriers, enemy, hazards, sigil, null);
+    const blocked = makeBlockedSet(
+      base,
+      barriers,
+      enemy,
+      hazards,
+      sigil,
+      null,
+      enemyTeleportPreview
+    );
     if (base.food) {
       blocked.add(keyForPosition(base.food));
     }
@@ -730,13 +924,14 @@
       blocked.add(safeKey);
     }
 
-    const size = bossDefinition.size ?? 1;
+    const width = bossDefinition.width ?? bossDefinition.size ?? 1;
+    const height = bossDefinition.height ?? bossDefinition.size ?? 1;
     const candidates = [];
-    for (let y = 0; y <= base.height - size; y += 1) {
-      for (let x = 0; x <= base.width - size; x += 1) {
+    for (let y = 0; y <= base.height - height; y += 1) {
+      for (let x = 0; x <= base.width - width; x += 1) {
         let canUse = true;
-        for (let dy = 0; dy < size; dy += 1) {
-          for (let dx = 0; dx < size; dx += 1) {
+        for (let dy = 0; dy < height; dy += 1) {
+          for (let dx = 0; dx < width; dx += 1) {
             const cellKey = `${x + dx},${y + dy}`;
             if (blocked.has(cellKey)) {
               canUse = false;
@@ -781,7 +976,9 @@
       style: bossDefinition.style,
       baseHazardEveryTicks: bossDefinition.hazardEveryTicks,
       baseTeleportEveryTicks: bossDefinition.teleportEveryTicks,
-      size,
+      width,
+      height,
+      size: width === height ? width : undefined,
       speedPenaltyTicks: bossDefinition.speedPenaltyTicks ?? 0,
     };
   }
@@ -858,7 +1055,17 @@
       snakeDefinition
     );
 
-    const tickMs = getSoulsTickMs(floor, stage.stageType, state.souls);
+    const snakeSpeedCps = getSoulsSnakeSpeedCps(
+      floor,
+      stage.stageType,
+      state.souls
+    );
+    const enemyBaseSnakeSpeedCps = getSoulsSnakeBaseSpeedCps(
+      floor,
+      stage.stageType,
+      state.souls
+    );
+    const tickMs = Math.max(SoulsData.MIN_TICK_MS, Math.round(1000 / snakeSpeedCps));
 
     const echo =
       floor === 1 && stage.stageType === "normal"
@@ -894,10 +1101,15 @@
       objectiveProgress: 0,
       objectiveTarget,
       sigil,
-      sigilRespawnTicks: 0,
+      sigilRespawnMsRemaining: 0,
       hazards,
+      enemyTeleportPreview: null,
       echo,
       tickMs,
+      snakeSpeedCps,
+      enemySpeedCps: getSoulsEnemySpeedCps(enemy, enemyBaseSnakeSpeedCps),
+      snakeMoveAccumulatorMs: 0,
+      enemyMoveAccumulatorMs: 0,
       armorCharges: getSoulsArmorPerStage(state.souls),
       countdownMsRemaining:
         options.includeCountdown === true ? SOULS_COUNTDOWN_MS : 0,
@@ -978,12 +1190,17 @@
         reward: null,
         rewardRerolled: false,
         sigil: null,
-        sigilRespawnTicks: 0,
+        sigilRespawnMsRemaining: 0,
         hazards: [],
+        enemyTeleportPreview: null,
         echo: null,
+        snakeSpeedCps: 0,
+        enemySpeedCps: 0,
+        snakeMoveAccumulatorMs: 0,
+        enemyMoveAccumulatorMs: 0,
         armorCharges: 0,
         ghostCooldownMs: 0,
-        directionLockTicks: 0,
+        directionLockMsRemaining: 0,
         lastDeathRunes: 0,
         lastDeathEcho: 0,
         countdownMsRemaining: 0,
@@ -1007,9 +1224,14 @@
     state.souls.objectiveTarget = stageState.objectiveTarget;
     state.souls.objectiveProgress = stageState.objectiveProgress;
     state.souls.sigil = stageState.sigil;
-    state.souls.sigilRespawnTicks = stageState.sigilRespawnTicks;
+    state.souls.sigilRespawnMsRemaining = stageState.sigilRespawnMsRemaining;
     state.souls.hazards = stageState.hazards;
+    state.souls.enemyTeleportPreview = stageState.enemyTeleportPreview;
     state.souls.echo = stageState.echo;
+    state.souls.snakeSpeedCps = stageState.snakeSpeedCps;
+    state.souls.enemySpeedCps = stageState.enemySpeedCps;
+    state.souls.snakeMoveAccumulatorMs = stageState.snakeMoveAccumulatorMs;
+    state.souls.enemyMoveAccumulatorMs = stageState.enemyMoveAccumulatorMs;
     state.souls.armorCharges = stageState.armorCharges;
     state.souls.countdownMsRemaining = stageState.countdownMsRemaining;
 
@@ -1044,7 +1266,7 @@
       };
     }
 
-    if (state.souls.directionLockTicks > 0) {
+    if (state.souls.directionLockMsRemaining > 0) {
       return state;
     }
 
@@ -1057,8 +1279,13 @@
       base: nextBase,
       souls: {
         ...state.souls,
-        directionLockTicks:
-          changed && snake?.directionLockTicks ? snake.directionLockTicks : 0,
+        directionLockMsRemaining:
+          changed && snake?.directionLockTicks
+            ? Math.round(
+                snake.directionLockTicks *
+                  (1000 / Math.max(0.1, state.souls.snakeSpeedCps || 1))
+              )
+            : 0,
       },
     };
   }
@@ -1096,20 +1323,27 @@
     });
   }
 
-  function reduceSoulsCooldowns(souls, tickMs) {
+  function reduceSoulsCooldowns(souls, deltaMs) {
     if (souls.ghostCooldownMs > 0) {
-      souls.ghostCooldownMs = Math.max(0, souls.ghostCooldownMs - tickMs);
+      souls.ghostCooldownMs = Math.max(0, souls.ghostCooldownMs - deltaMs);
     }
 
-    if (souls.directionLockTicks > 0) {
-      souls.directionLockTicks -= 1;
+    if (souls.directionLockMsRemaining > 0) {
+      souls.directionLockMsRemaining = Math.max(
+        0,
+        souls.directionLockMsRemaining - deltaMs
+      );
     }
   }
 
-  function normalizeHazards(hazards) {
+  function normalizeHazards(hazards, deltaMs) {
     return hazards
-      .map((hazard) => ({ ...hazard, ttlTicks: hazard.ttlTicks - 1 }))
-      .filter((hazard) => hazard.ttlTicks > 0);
+      .map((hazard) => ({
+        ...hazard,
+        ttlMs: (hazard.ttlMs ?? HAZARD_TTL_MS) - deltaMs,
+      }))
+      .filter((hazard) => hazard.ttlMs > 0)
+      .map((hazard) => ({ x: hazard.x, y: hazard.y, ttlMs: hazard.ttlMs }));
   }
 
   function addHazardPulse(base, enemy, hazards) {
@@ -1138,7 +1372,7 @@
         continue;
       }
 
-      next.push({ ...candidate, ttlTicks: HAZARD_TTL_TICKS });
+      next.push({ ...candidate, ttlMs: HAZARD_TTL_MS });
     }
 
     return next;
@@ -1183,19 +1417,35 @@
     return true;
   }
 
-  function teleportEnemy(enemy, base, barriers, hazards, sigil, echo, rng) {
-    const blocked = makeBlockedSet(base, barriers, enemy, hazards, sigil, echo);
+  function listTeleportAnchorsForEnemy(
+    enemy,
+    base,
+    barriers,
+    hazards,
+    sigil,
+    echo,
+    enemyTeleportPreview = null
+  ) {
+    const blocked = makeBlockedSet(
+      base,
+      barriers,
+      enemy,
+      hazards,
+      sigil,
+      echo,
+      enemyTeleportPreview
+    );
     for (const currentCell of getEnemyCells(enemy)) {
       blocked.delete(keyForPosition(currentCell));
     }
 
     const candidates = [];
-    const size = enemy.size ?? 1;
-    for (let y = 0; y <= base.height - size; y += 1) {
-      for (let x = 0; x <= base.width - size; x += 1) {
+    const footprint = getEnemyFootprint(enemy);
+    for (let y = 0; y <= base.height - footprint.height; y += 1) {
+      for (let x = 0; x <= base.width - footprint.width; x += 1) {
         let canUse = true;
-        for (let dy = 0; dy < size; dy += 1) {
-          for (let dx = 0; dx < size; dx += 1) {
+        for (let dy = 0; dy < footprint.height; dy += 1) {
+          for (let dx = 0; dx < footprint.width; dx += 1) {
             const cellKey = `${x + dx},${y + dy}`;
             if (blocked.has(cellKey)) {
               canUse = false;
@@ -1210,25 +1460,97 @@
       }
     }
 
+    return candidates;
+  }
+
+  function pickTeleportAnchorForEnemy(
+    enemy,
+    base,
+    barriers,
+    hazards,
+    sigil,
+    echo,
+    rng,
+    options = {}
+  ) {
+    const candidates = listTeleportAnchorsForEnemy(
+      enemy,
+      base,
+      barriers,
+      hazards,
+      sigil,
+      echo,
+      options.enemyTeleportPreview
+    );
     if (candidates.length === 0) {
+      return null;
+    }
+
+    let pool = candidates;
+    if (options.preferNearTarget && options.target) {
+      const footprint = getEnemyFootprint(enemy);
+      const maxDistance = Math.max(
+        0,
+        options.maxDistance ?? ESPECTRO_TELEPORT_MAX_DISTANCE
+      );
+      const nearby = candidates.filter(
+        (anchor) =>
+          getAnchorDistanceToPosition(anchor, footprint, options.target) <=
+          maxDistance
+      );
+      if (nearby.length > 0) {
+        pool = nearby;
+      }
+    }
+
+    const index = clampIndex(Math.floor(rng() * pool.length), pool.length);
+    return pool[index];
+  }
+
+  function applyEnemyTeleportAnchor(enemy, anchor) {
+    if (!enemy || !anchor) {
       return enemy;
     }
 
-    const position = candidates[
-      clampIndex(Math.floor(rng() * candidates.length), candidates.length)
-    ];
-
     return {
       ...enemy,
-      x: position.x,
-      y: position.y,
+      x: anchor.x,
+      y: anchor.y,
       tickCounter: 0,
     };
+  }
+
+  function teleportEnemy(
+    enemy,
+    base,
+    barriers,
+    hazards,
+    sigil,
+    echo,
+    rng,
+    options = {}
+  ) {
+    const anchor = pickTeleportAnchorForEnemy(
+      enemy,
+      base,
+      barriers,
+      hazards,
+      sigil,
+      echo,
+      rng,
+      options
+    );
+    if (!anchor) {
+      return enemy;
+    }
+
+    return applyEnemyTeleportAnchor(enemy, anchor);
   }
 
   function moveSoulsEnemy(enemy, souls, base, barriers, hazards, rng) {
     if (!enemy) return enemy;
 
+    const head = base.snake[0];
     let nextEnemy = {
       ...enemy,
       tickCounter: enemy.tickCounter + 1,
@@ -1241,15 +1563,47 @@
       enemy.baseTeleportEveryTicks > 0 &&
       nextEnemy.teleportCounter >= enemy.baseTeleportEveryTicks
     ) {
-      nextEnemy = teleportEnemy(
-        nextEnemy,
-        base,
-        barriers,
-        hazards,
-        souls.sigil,
-        souls.echo,
-        rng
-      );
+      if (enemy.id === "espectro") {
+        if (!souls.enemyTeleportPreview) {
+          const anchor = pickTeleportAnchorForEnemy(
+            nextEnemy,
+            base,
+            barriers,
+            hazards,
+            souls.sigil,
+            souls.echo,
+            rng,
+            {
+              preferNearTarget: true,
+              target: head,
+              maxDistance: ESPECTRO_TELEPORT_MAX_DISTANCE,
+              enemyTeleportPreview: souls.enemyTeleportPreview,
+            }
+          );
+          if (anchor) {
+            const footprint = getEnemyFootprint(nextEnemy);
+            souls.enemyTeleportPreview = {
+              x: anchor.x,
+              y: anchor.y,
+              width: footprint.width,
+              height: footprint.height,
+              msRemaining: ESPECTRO_TELEPORT_PREVIEW_MS,
+              enemyId: nextEnemy.id,
+            };
+          }
+        }
+      } else {
+        nextEnemy = teleportEnemy(
+          nextEnemy,
+          base,
+          barriers,
+          hazards,
+          souls.sigil,
+          souls.echo,
+          rng,
+          { enemyTeleportPreview: souls.enemyTeleportPreview }
+        );
+      }
       nextEnemy.teleportCounter = 0;
     }
 
@@ -1259,9 +1613,10 @@
 
     nextEnemy.tickCounter = 0;
 
-    const head = base.snake[0];
+    const carcereiroAggro =
+      enemy.id === "carcereiro" && getEnemyDistanceToPosition(nextEnemy, head) <= 3;
 
-    if (enemy.style === "patrol") {
+    if (enemy.style === "patrol" && !carcereiroAggro) {
       let direction = enemy.direction;
       for (let i = 0; i < 4; i += 1) {
         const vector = SnakeLogic.DIRECTION_VECTORS[direction];
@@ -1328,6 +1683,7 @@
       carriedRunes: 0,
       lastDeathRunes: lostRunes,
       lastDeathEcho: updatedProfile.pendingEcho?.runes ?? 0,
+      enemyTeleportPreview: null,
       reward: null,
     };
 
@@ -1346,6 +1702,12 @@
   function handleSoulsStageCompletion(state, nextBase, souls, rng) {
     if (souls.stageType === "normal") {
       return startNextSoulsFloor(state, nextBase, souls, souls.floor + 1, rng);
+    }
+
+    const defeatedBossId =
+      state.enemy?.id ?? SoulsData.getBossDefinition(souls.floor)?.id ?? null;
+    if (defeatedBossId) {
+      souls.profile = SoulsProfile.registerBossDefeat(souls.profile, defeatedBossId);
     }
 
     if (souls.carriedRunes > 0) {
@@ -1384,6 +1746,7 @@
       isPaused: true,
       souls: {
         ...souls,
+        enemyTeleportPreview: null,
         reward: {
           options,
           rerolled: false,
@@ -1393,7 +1756,15 @@
     };
   }
 
-  function startNextSoulsFloor(state, currentBase, souls, floor, rng) {
+  function startNextSoulsFloor(
+    state,
+    currentBase,
+    souls,
+    floor,
+    rng,
+    options = {}
+  ) {
+    const includeCountdown = options.includeCountdown !== false;
     const workingState = {
       ...state,
       base: currentBase,
@@ -1407,7 +1778,7 @@
     };
 
     const stageState = createSoulsStageState(workingState, floor, rng, {
-      includeCountdown: true,
+      includeCountdown,
     });
 
     return {
@@ -1435,9 +1806,14 @@
         objectiveTarget: stageState.objectiveTarget,
         objectiveProgress: stageState.objectiveProgress,
         sigil: stageState.sigil,
-        sigilRespawnTicks: stageState.sigilRespawnTicks,
+        sigilRespawnMsRemaining: stageState.sigilRespawnMsRemaining,
         hazards: stageState.hazards,
+        enemyTeleportPreview: stageState.enemyTeleportPreview,
         echo: stageState.echo,
+        snakeSpeedCps: stageState.snakeSpeedCps,
+        enemySpeedCps: stageState.enemySpeedCps,
+        snakeMoveAccumulatorMs: stageState.snakeMoveAccumulatorMs,
+        enemyMoveAccumulatorMs: stageState.enemyMoveAccumulatorMs,
         armorCharges: stageState.armorCharges,
         countdownMsRemaining: stageState.countdownMsRemaining,
       },
@@ -1456,6 +1832,9 @@
       profile: SoulsProfile.sanitizeProfile(state.souls.profile),
       powers: { ...state.souls.powers },
       hazards: state.souls.hazards.map((hazard) => ({ ...hazard })),
+      enemyTeleportPreview: state.souls.enemyTeleportPreview
+        ? { ...state.souls.enemyTeleportPreview }
+        : null,
       reward: state.souls.reward,
       echo: state.souls.echo
         ? {
@@ -1466,11 +1845,28 @@
           }
         : null,
     };
+    souls.snakeSpeedCps = getSoulsSnakeSpeedCps(
+      souls.floor,
+      souls.stageType,
+      souls
+    );
+    souls.enemySpeedCps = state.enemy
+      ? getSoulsEnemySpeedCps(
+          state.enemy,
+          getSoulsSnakeBaseSpeedCps(souls.floor, souls.stageType, souls)
+        )
+      : 0;
+    const defaultDeltaMs = Math.max(
+      state.tickMs,
+      1000 / Math.max(0.1, souls.snakeSpeedCps)
+    );
+    const deltaMs = Math.max(0, options.deltaMs ?? defaultDeltaMs);
+    const holdCurrentDirection = options.holdCurrentDirection === true;
 
     if (souls.countdownMsRemaining > 0) {
       souls.countdownMsRemaining = Math.max(
         0,
-        souls.countdownMsRemaining - state.tickMs
+        souls.countdownMsRemaining - deltaMs
       );
 
       return {
@@ -1479,114 +1875,167 @@
       };
     }
 
-    reduceSoulsCooldowns(souls, state.tickMs);
-    souls.hazards = normalizeHazards(souls.hazards);
+    reduceSoulsCooldowns(souls, deltaMs);
+    souls.hazards = normalizeHazards(souls.hazards, deltaMs);
+    if (souls.enemyTeleportPreview) {
+      souls.enemyTeleportPreview.msRemaining = Math.max(
+        0,
+        souls.enemyTeleportPreview.msRemaining - deltaMs
+      );
+    }
+    souls.snakeMoveAccumulatorMs += deltaMs;
+    souls.enemyMoveAccumulatorMs += deltaMs;
 
-    const { direction, nextHead } = getNextHead(base);
-    if (isOutOfBounds(base, nextHead)) {
-      const nextBase = {
-        ...base,
-        direction,
-        pendingDirection: direction,
-      };
-      return createSoulsGameOver(state, nextBase, souls);
+    const effectiveSnakeSpeedCps = getSoulsSnakeSpeedCps(
+      souls.floor,
+      souls.stageType,
+      souls,
+      { holdCurrentDirection }
+    );
+    const snakeIntervalMs = 1000 / Math.max(0.1, effectiveSnakeSpeedCps);
+    const enemyIntervalMs = getSoulsEnemyIntervalMs(souls);
+    const shouldMoveSnake = souls.snakeMoveAccumulatorMs >= snakeIntervalMs;
+    const shouldMoveEnemy = souls.enemyMoveAccumulatorMs >= enemyIntervalMs;
+    const readyTeleportPreview =
+      souls.enemyTeleportPreview &&
+      souls.enemyTeleportPreview.msRemaining <= 0
+        ? { ...souls.enemyTeleportPreview }
+        : null;
+    if (readyTeleportPreview) {
+      souls.enemyTeleportPreview = null;
     }
 
-    const collectRange = hasPower(souls, "ima") ? 1 : 0;
-    const willEatFood =
-      souls.objectiveType === "food" &&
-      base.food &&
-      isWithinCollectionRange(nextHead, base.food, collectRange);
-    const willCollectSigil =
-      souls.objectiveType === "sigil" &&
-      souls.sigil &&
-      isWithinCollectionRange(nextHead, souls.sigil, collectRange);
-
-    const shouldGrow = willEatFood || willCollectSigil;
-    const nextSnake = [nextHead, ...base.snake];
-    if (!shouldGrow) {
-      nextSnake.pop();
-    }
-
-    const collidedWithSelf = nextSnake
-      .slice(1)
-      .some((segment) => arePositionsEqual(segment, nextHead));
-
-    if (collidedWithSelf) {
-      const nextBase = {
-        ...base,
-        snake: nextSnake,
-        direction,
-        pendingDirection: direction,
-      };
-      return createSoulsGameOver(state, nextBase, souls);
-    }
-
-    const nextBase = {
+    let nextBase = {
       ...base,
-      snake: nextSnake,
-      direction,
-      pendingDirection: direction,
-      score: base.score + (willEatFood || willCollectSigil ? 1 : 0),
       isGameOver: false,
       isPaused: false,
     };
 
-    const hitBarrier = containsPosition(state.barriers, nextHead);
-    const hitEnemy = enemyOccupiesPosition(state.enemy, nextHead);
-    const hitHazard = containsPosition(souls.hazards, nextHead);
-
-    if ((hitBarrier || hitEnemy || hitHazard) && !tryMitigateSoulsCollision(souls)) {
-      return createSoulsGameOver(state, nextBase, souls);
+    if (shouldMoveSnake) {
+      souls.snakeMoveAccumulatorMs -= snakeIntervalMs;
+    }
+    if (shouldMoveEnemy) {
+      souls.enemyMoveAccumulatorMs -= enemyIntervalMs;
     }
 
-    if (souls.echo?.position && isWithinCollectionRange(nextHead, souls.echo.position, collectRange)) {
-      const collected = SoulsProfile.collectEcho(souls.profile);
-      souls.profile = collected.profile;
-      souls.carriedRunes += collected.recoveredRunes;
-      souls.echo = null;
+    if (!shouldMoveSnake && !shouldMoveEnemy && !readyTeleportPreview) {
+      return {
+        ...state,
+        souls,
+      };
     }
 
-    if (willEatFood) {
-      souls.objectiveProgress += 1;
-      applyRuneGain(souls, SoulsData.getRuneReward("food"));
-      nextBase.food = spawnSoulsFood(
-        nextBase,
-        state.barriers,
-        state.enemy,
-        souls.hazards,
-        souls.sigil,
-        souls.echo,
-        rng
-      );
-      if (!nextBase.food) {
+    const collectRange = hasPower(souls, "ima") ? 1 : 0;
+    if (shouldMoveSnake) {
+      const { direction, nextHead } = getNextHead(base);
+      if (isOutOfBounds(base, nextHead)) {
+        const outBase = {
+          ...base,
+          direction,
+          pendingDirection: direction,
+        };
+        return createSoulsGameOver(state, outBase, souls);
+      }
+
+      const willEatFood =
+        souls.objectiveType === "food" &&
+        base.food &&
+        isWithinCollectionRange(nextHead, base.food, collectRange);
+      const willCollectSigil =
+        souls.objectiveType === "sigil" &&
+        souls.sigil &&
+        isWithinCollectionRange(nextHead, souls.sigil, collectRange);
+
+      const shouldGrow = willEatFood || willCollectSigil;
+      const nextSnake = [nextHead, ...base.snake];
+      if (!shouldGrow) {
+        nextSnake.pop();
+      }
+
+      const collidedWithSelf = nextSnake
+        .slice(1)
+        .some((segment) => arePositionsEqual(segment, nextHead));
+
+      if (collidedWithSelf) {
+        const collidedBase = {
+          ...base,
+          snake: nextSnake,
+          direction,
+          pendingDirection: direction,
+        };
+        return createSoulsGameOver(state, collidedBase, souls);
+      }
+
+      nextBase = {
+        ...base,
+        snake: nextSnake,
+        direction,
+        pendingDirection: direction,
+        score: base.score + (willEatFood || willCollectSigil ? 1 : 0),
+        isGameOver: false,
+        isPaused: false,
+      };
+
+      const hitBarrier = containsPosition(state.barriers, nextHead);
+      const hitEnemy = enemyOccupiesPosition(state.enemy, nextHead);
+      const hitHazard = containsPosition(souls.hazards, nextHead);
+
+      if ((hitBarrier || hitEnemy || hitHazard) && !tryMitigateSoulsCollision(souls)) {
         return createSoulsGameOver(state, nextBase, souls);
+      }
+
+      if (
+        souls.echo?.position &&
+        isWithinCollectionRange(nextHead, souls.echo.position, collectRange)
+      ) {
+        const collected = SoulsProfile.collectEcho(souls.profile);
+        souls.profile = collected.profile;
+        souls.carriedRunes += collected.recoveredRunes;
+        souls.echo = null;
+      }
+
+      if (willEatFood) {
+        souls.objectiveProgress += 1;
+        applyRuneGain(souls, SoulsData.getRuneReward("food"));
+        nextBase.food = spawnSoulsFood(
+          nextBase,
+          state.barriers,
+          state.enemy,
+          souls.hazards,
+          souls.sigil,
+          souls.echo,
+          rng,
+          souls.enemyTeleportPreview
+        );
+        if (!nextBase.food) {
+          return createSoulsGameOver(state, nextBase, souls);
+        }
+      }
+
+      if (willCollectSigil) {
+        souls.objectiveProgress += 1 + getPowerStack(souls, "voracidade");
+        applyRuneGain(souls, SoulsData.getRuneReward("sigil"));
+        souls.sigil = null;
+        souls.sigilRespawnMsRemaining = getSoulsSigilRespawnMs(souls);
       }
     }
 
-    if (willCollectSigil) {
-      souls.objectiveProgress += 1 + getPowerStack(souls, "voracidade");
-      applyRuneGain(souls, SoulsData.getRuneReward("sigil"));
-      souls.sigil = null;
-      const snake = getSnakeDefinition(souls);
-      souls.sigilRespawnTicks = Math.max(
-        1,
-        Math.round(4 * (snake?.sigilSpawnFactor ?? 1))
-      );
-    }
-
     if (souls.objectiveType === "sigil" && !souls.sigil) {
-      souls.sigilRespawnTicks -= 1;
-      if (souls.sigilRespawnTicks <= 0) {
+      souls.sigilRespawnMsRemaining = Math.max(
+        0,
+        souls.sigilRespawnMsRemaining - deltaMs
+      );
+      if (souls.sigilRespawnMsRemaining <= 0) {
         souls.sigil = spawnSoulsSigil(
           nextBase,
           state.barriers,
           state.enemy,
           souls.hazards,
           souls.echo,
-          rng
+          rng,
+          souls.enemyTeleportPreview
         );
-        souls.sigilRespawnTicks = 0;
+        souls.sigilRespawnMsRemaining = 0;
         if (!souls.sigil) {
           return createSoulsGameOver(state, nextBase, souls);
         }
@@ -1594,7 +2043,18 @@
     }
 
     let enemy = state.enemy ? { ...state.enemy } : null;
-    if (enemy) {
+    let consumedEnemyActionByTeleport = false;
+    if (
+      enemy &&
+      readyTeleportPreview &&
+      enemy.id === readyTeleportPreview.enemyId
+    ) {
+      enemy = applyEnemyTeleportAnchor(enemy, readyTeleportPreview);
+      enemy.teleportCounter = 0;
+      consumedEnemyActionByTeleport = true;
+    }
+
+    if (enemy && shouldMoveEnemy && !consumedEnemyActionByTeleport) {
       enemy = moveSoulsEnemy(enemy, souls, nextBase, state.barriers, souls.hazards, rng);
 
       const shouldHazardPulse =
@@ -1742,15 +2202,116 @@
     };
   }
 
+  function devSetSoulsFloor(state, floor, options = {}) {
+    if (state.mode !== "souls") {
+      return state;
+    }
+
+    const rng = options.rng ?? Math.random;
+    const numericFloor = Number(floor);
+    const safeFloor = Number.isFinite(numericFloor)
+      ? Math.max(1, Math.floor(numericFloor))
+      : 1;
+
+    const souls = {
+      ...state.souls,
+      profile: SoulsProfile.sanitizeProfile(state.souls.profile),
+      reward: null,
+      rewardRerolled: false,
+      objectiveProgress: 0,
+    };
+    const base = {
+      ...state.base,
+      isGameOver: false,
+      isPaused: false,
+    };
+    const staged = startNextSoulsFloor(
+      {
+        ...state,
+        base,
+        isGameOver: false,
+        isPaused: false,
+        souls,
+      },
+      base,
+      souls,
+      safeFloor,
+      rng,
+      { includeCountdown: options.includeCountdown === true }
+    );
+
+    const nextSouls = {
+      ...staged.souls,
+      reward: null,
+      rewardRerolled: false,
+    };
+
+    return {
+      ...staged,
+      base: {
+        ...staged.base,
+        isGameOver: false,
+        isPaused: false,
+      },
+      isGameOver: false,
+      isPaused: false,
+      souls: nextSouls,
+      tickMs: getSoulsTickMs(
+        nextSouls.floor,
+        nextSouls.stageType,
+        nextSouls
+      ),
+    };
+  }
+
+  function devSetSoulsBoss(state, bossSlot, options = {}) {
+    if (state.mode !== "souls") {
+      return state;
+    }
+
+    const token =
+      typeof bossSlot === "string"
+        ? bossSlot.toUpperCase()
+        : Number.isFinite(Number(bossSlot))
+        ? String(Math.floor(Number(bossSlot)))
+        : "";
+
+    let withinCycle = null;
+    if (token === "FINAL") {
+      withinCycle = 12;
+    } else if (token === "1") {
+      withinCycle = 3;
+    } else if (token === "2") {
+      withinCycle = 6;
+    } else if (token === "3") {
+      withinCycle = 9;
+    }
+
+    if (withinCycle === null) {
+      return state;
+    }
+
+    const cycleFromOptions = Number(options.cycle);
+    const cycle = Number.isFinite(cycleFromOptions)
+      ? Math.max(1, Math.floor(cycleFromOptions))
+      : SoulsData.getCycle(state.souls.floor);
+    const targetFloor = (cycle - 1) * 12 + withinCycle;
+
+    return devSetSoulsFloor(state, targetFloor, options);
+  }
+
   function stepTraditionalState(state, options = {}) {
     const rng = options.rng ?? Math.random;
     const nextBase = SnakeLogic.stepState(state.base, { rng });
+    const holdCurrentDirection = options.holdCurrentDirection === true;
     return {
       ...state,
       base: nextBase,
       isGameOver: nextBase.isGameOver,
       isPaused: nextBase.isPaused,
-      tickMs: TRADITIONAL_TICK_MS,
+      tickMs: holdCurrentDirection
+        ? TRADITIONAL_BASE_TICK_MS
+        : TRADITIONAL_TICK_MS,
       level: null,
       levelProgress: 0,
       levelTarget: 0,
@@ -1796,6 +2357,8 @@
     restartModeState,
     chooseSoulsReward,
     rerollSoulsReward,
+    devSetSoulsFloor,
+    devSetSoulsBoss,
   });
 
   if (typeof module !== "undefined" && module.exports) {

@@ -11,6 +11,7 @@
   --food: #d94f3d;
   --barrier: #697480;
   --enemy: #b74fb8;
+  --telegraph: #f2a43a;
   --power: #e0b826;
   --sigil: #8e5de6;
   --hazard: #ff7f50;
@@ -30,6 +31,7 @@
   --food: #eb6b57;
   --barrier: #7e8b98;
   --enemy: #cd6ac8;
+  --telegraph: #f7b55a;
   --power: #f4cc3f;
   --sigil: #b88bff;
   --hazard: #ff9d74;
@@ -49,9 +51,264 @@ body {
 }
 
 .app {
-  max-width: 560px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px 16px 32px;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(220px, 280px);
+  gap: 14px;
+  align-items: start;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.sidebar-card h2 {
+  margin: 0 0 8px;
+}
+
+.sidebar-muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.instructions-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: var(--cell-bg);
+  flex: 0 0 14px;
+}
+
+.legend-swatch.head {
+  background: var(--snake-head);
+}
+
+.legend-swatch.snake {
+  background: var(--snake);
+}
+
+.legend-swatch.food {
+  background: var(--food);
+}
+
+.legend-swatch.barrier {
+  background: var(--barrier);
+}
+
+.legend-swatch.enemy {
+  background: var(--enemy);
+}
+
+.legend-swatch.power-up {
+  background: var(--power);
+}
+
+.legend-swatch.sigil {
+  background: var(--sigil);
+}
+
+.legend-swatch.hazard {
+  background: var(--hazard);
+}
+
+.legend-swatch.echo {
+  background: var(--echo);
+}
+
+.sidebar-text-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-text-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.main-pane {
+  min-width: 0;
+}
+
+.dev-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dev-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.dev-panel-head span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.dev-panel-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-panel-controls input {
+  flex: 1 1 200px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.dev-feedback {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.dev-feedback.info {
+  color: var(--muted);
+}
+
+.dev-feedback.success {
+  color: #1f7a46;
+}
+
+.dev-feedback.error {
+  color: #c24a3a;
+}
+
+.boss-intel-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.boss-intel-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.boss-intel-card.locked {
+  opacity: 0.72;
+}
+
+.boss-intel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.boss-intel-tag {
+  font-size: 0.74rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.boss-intel-detail {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.souls-powers-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.power-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.power-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.power-stack {
+  color: var(--muted);
+  font-size: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.power-card-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .hidden {
@@ -226,7 +483,7 @@ select {
 .grid {
   --grid-width: 20;
   --grid-height: 20;
-  width: min(90vw, 500px);
+  width: min(100%, 500px);
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(var(--grid-width), 1fr);
@@ -258,6 +515,10 @@ select {
 
 .cell.enemy {
   background: var(--enemy);
+}
+
+.cell.telegraph {
+  background: var(--telegraph);
 }
 
 .cell.power-up {
@@ -439,5 +700,11 @@ button:disabled {
 @media (pointer: coarse) {
   .touch-controls {
     display: flex;
+  }
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
   }
 }

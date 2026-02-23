@@ -11,6 +11,12 @@ test("loads default profile when storage is invalid", () => {
   assert.equal(profile.walletRunes, 0);
   assert.deepEqual(profile.unlockedSnakeIds, [SoulsData.DEFAULT_SNAKE_ID]);
   assert.equal(profile.selectedSnakeId, SoulsData.DEFAULT_SNAKE_ID);
+  assert.deepEqual(profile.bossKills, {
+    cacador: 0,
+    carcereiro: 0,
+    espectro: 0,
+    abissal: 0,
+  });
 });
 
 test("purchase obeys unlock order, eligibility and rune cost", () => {
@@ -60,6 +66,12 @@ test("profile serialization roundtrip keeps safe values", () => {
     finalBossClears: 3,
     eligibleUnlocks: 2,
     pendingEcho: { runes: 55 },
+    bossKills: {
+      cacador: 2,
+      carcereiro: 1,
+      espectro: 0,
+      abissal: 4,
+    },
   };
 
   const serialized = SoulsProfile.saveProfile(source);
@@ -71,4 +83,72 @@ test("profile serialization roundtrip keeps safe values", () => {
   assert.equal(loaded.finalBossClears, 3);
   assert.equal(loaded.eligibleUnlocks, 2);
   assert.equal(loaded.pendingEcho?.runes, 55);
+  assert.equal(loaded.bossKills.cacador, 2);
+  assert.equal(loaded.bossKills.abissal, 4);
+});
+
+test("registerBossDefeat increments only known boss ids", () => {
+  let profile = SoulsProfile.createDefaultProfile();
+  profile = SoulsProfile.registerBossDefeat(profile, "carcereiro");
+  profile = SoulsProfile.registerBossDefeat(profile, "carcereiro");
+  profile = SoulsProfile.registerBossDefeat(profile, "inexistente");
+
+  assert.equal(profile.bossKills.carcereiro, 2);
+  assert.equal(profile.bossKills.cacador, 0);
+});
+
+test("legacy profile without bossKills is sanitized safely", () => {
+  const legacy = SoulsProfile.loadProfile(
+    JSON.stringify({
+      walletRunes: 10,
+      selectedSnakeId: "basica",
+      unlockedSnakeIds: ["basica"],
+      finalBossClears: 1,
+      eligibleUnlocks: 1,
+      pendingEcho: null,
+    })
+  );
+
+  assert.deepEqual(legacy.bossKills, {
+    cacador: 0,
+    carcereiro: 0,
+    espectro: 0,
+    abissal: 0,
+  });
+});
+
+test("forceUnlockNext ignores economy gates and unlocks in fixed order", () => {
+  let profile = SoulsProfile.createDefaultProfile();
+
+  const first = SoulsProfile.forceUnlockNext(profile);
+  assert.equal(first.ok, true);
+  assert.equal(first.profile.unlockedSnakeIds.includes("veloz"), true);
+  assert.equal(first.profile.selectedSnakeId, "veloz");
+  profile = first.profile;
+
+  const second = SoulsProfile.forceUnlockNext(profile);
+  assert.equal(second.ok, true);
+  assert.equal(second.profile.unlockedSnakeIds.includes("tanque"), true);
+  profile = second.profile;
+
+  const third = SoulsProfile.forceUnlockNext(profile);
+  assert.equal(third.ok, true);
+  assert.equal(third.profile.unlockedSnakeIds.includes("vidente"), true);
+
+  const done = SoulsProfile.forceUnlockNext(third.profile);
+  assert.equal(done.ok, false);
+  assert.equal(done.reason, "all-unlocked");
+});
+
+test("forceUnlockAll unlocks all snakes and keeps profile sanitized", () => {
+  const profile = SoulsProfile.createDefaultProfile();
+  const result = SoulsProfile.forceUnlockAll(profile);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    result.profile.unlockedSnakeIds.sort(),
+    SoulsData.SNAKES.map((snake) => snake.id).sort()
+  );
+  assert.ok(result.profile.eligibleUnlocks >= SoulsData.UNLOCK_ORDER.length);
+  assert.ok(result.profile.finalBossClears >= SoulsData.UNLOCK_ORDER.length);
 });

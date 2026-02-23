@@ -11,6 +11,15 @@
 
   const PROFILE_VERSION = 1;
 
+  function createEmptyBossKills() {
+    return {
+      cacador: 0,
+      carcereiro: 0,
+      espectro: 0,
+      abissal: 0,
+    };
+  }
+
   function createDefaultProfile() {
     return {
       version: PROFILE_VERSION,
@@ -20,6 +29,7 @@
       finalBossClears: 0,
       eligibleUnlocks: 0,
       pendingEcho: null,
+      bossKills: createEmptyBossKills(),
     };
   }
 
@@ -62,6 +72,18 @@
     return { runes };
   }
 
+  function normalizeBossKills(bossKills) {
+    const source = bossKills && typeof bossKills === "object" ? bossKills : {};
+    const next = createEmptyBossKills();
+    const knownBossIds = Object.keys(next);
+
+    for (const bossId of knownBossIds) {
+      next[bossId] = Math.max(0, Math.floor(toSafeNumber(source[bossId], 0)));
+    }
+
+    return next;
+  }
+
   function sanitizeProfile(input) {
     const raw = input && typeof input === "object" ? input : {};
     const defaults = createDefaultProfile();
@@ -88,6 +110,7 @@
         Math.floor(toSafeNumber(raw.eligibleUnlocks, 0))
       ),
       pendingEcho: normalizePendingEcho(raw.pendingEcho),
+      bossKills: normalizeBossKills(raw.bossKills),
     };
   }
 
@@ -161,6 +184,55 @@
     return { ok: true, reason: null, profile: sanitizeProfile(updated) };
   }
 
+  function forceUnlockNext(profile) {
+    const safeProfile = sanitizeProfile(profile);
+    const nextUnlock = getNextUnlock(safeProfile);
+    if (!nextUnlock) {
+      return { ok: false, reason: "all-unlocked", profile: safeProfile };
+    }
+
+    const requiredUnlocks = nextUnlock.index + 1;
+    const updated = {
+      ...safeProfile,
+      unlockedSnakeIds: [...safeProfile.unlockedSnakeIds, nextUnlock.snakeId],
+      selectedSnakeId: nextUnlock.snakeId,
+      eligibleUnlocks: Math.max(safeProfile.eligibleUnlocks, requiredUnlocks),
+      finalBossClears: Math.max(safeProfile.finalBossClears, requiredUnlocks),
+    };
+
+    return {
+      ok: true,
+      reason: null,
+      profile: sanitizeProfile(updated),
+      snakeId: nextUnlock.snakeId,
+    };
+  }
+
+  function forceUnlockAll(profile) {
+    const safeProfile = sanitizeProfile(profile);
+    const allSnakeIds = SoulsData.SNAKES.map((snake) => snake.id);
+    const fullyUnlocked = normalizeUnlockedSnakeIds(allSnakeIds);
+    const selectedSnakeId = fullyUnlocked.includes(safeProfile.selectedSnakeId)
+      ? safeProfile.selectedSnakeId
+      : SoulsData.UNLOCK_ORDER[SoulsData.UNLOCK_ORDER.length - 1] ??
+        SoulsData.DEFAULT_SNAKE_ID;
+    const requiredUnlocks = SoulsData.UNLOCK_ORDER.length;
+
+    const updated = {
+      ...safeProfile,
+      unlockedSnakeIds: fullyUnlocked,
+      selectedSnakeId,
+      eligibleUnlocks: Math.max(safeProfile.eligibleUnlocks, requiredUnlocks),
+      finalBossClears: Math.max(safeProfile.finalBossClears, requiredUnlocks),
+    };
+
+    return {
+      ok: true,
+      reason: null,
+      profile: sanitizeProfile(updated),
+    };
+  }
+
   function applyDeathEcho(profile, carriedRunes) {
     const safeProfile = sanitizeProfile(profile);
     const runes = Math.max(0, Math.floor(toSafeNumber(carriedRunes, 0)));
@@ -205,6 +277,21 @@
     };
   }
 
+  function registerBossDefeat(profile, bossId) {
+    const safeProfile = sanitizeProfile(profile);
+    if (typeof bossId !== "string" || !(bossId in safeProfile.bossKills)) {
+      return safeProfile;
+    }
+
+    return {
+      ...safeProfile,
+      bossKills: {
+        ...safeProfile.bossKills,
+        [bossId]: safeProfile.bossKills[bossId] + 1,
+      },
+    };
+  }
+
   function selectSnake(profile, snakeId) {
     const safeProfile = sanitizeProfile(profile);
     if (!safeProfile.unlockedSnakeIds.includes(snakeId)) {
@@ -226,10 +313,13 @@
     hasSnakeUnlocked,
     getNextUnlock,
     purchaseSnake,
+    forceUnlockNext,
+    forceUnlockAll,
     applyDeathEcho,
     collectEcho,
     addWalletRunes,
     registerFinalBossClear,
+    registerBossDefeat,
     selectSnake,
   });
 
