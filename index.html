@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Snake</title>
+    <title>Snake Souls</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,8 +11,18 @@
       <div class="app-shell">
         <aside class="sidebar" aria-label="Instruções e chefes">
           <section class="sidebar-card instructions-panel">
-            <h2>Controles rápidos</h2>
-            <ul>
+            <div class="instructions-panel-head">
+              <h2>Controles rápidos</h2>
+              <button
+                id="instructions-toggle-btn"
+                class="instructions-toggle-btn"
+                type="button"
+                aria-expanded="true"
+              >
+                Minimizar
+              </button>
+            </div>
+            <ul id="instructions-list">
               <li>Setas ou WASD para mover.</li>
               <li>Espaço/P para pausar, R para reiniciar.</li>
               <li>No Souls, derrote bosses coletando sigilos.</li>
@@ -61,16 +71,12 @@
 
         <section class="main-pane">
           <header class="top-bar">
-            <h1>Snake</h1>
+            <h1>Snake Souls</h1>
             <div class="top-meta">
               <div class="scoreboard">
-                <span>Score: <strong id="score">0</strong></span>
-                <span>Status: <strong id="status">Ready</strong></span>
+                <span>Pontos: <strong id="score">0</strong></span>
+                <span>Status: <strong id="status">Pronto</strong></span>
               </div>
-              <label class="theme-switch" for="theme-toggle">
-                <input id="theme-toggle" type="checkbox" />
-                <span>Dark</span>
-              </label>
             </div>
           </header>
 
@@ -97,8 +103,9 @@
           <section id="menu-screen" class="menu-screen" aria-label="Game menu">
             <h2>Escolha o modo</h2>
             <p class="menu-help">
-              Selecione uma opcao abaixo e inicie a partida.
+              Selecione uma opção abaixo e inicie a partida.
             </p>
+            <p class="menu-version">Versão: <strong id="game-version">-</strong></p>
             <div class="menu-options" aria-label="Game modes">
               <button
                 type="button"
@@ -108,8 +115,8 @@
               >
                 <span class="mode-option-icon" aria-hidden="true">&#128013;</span>
                 <span class="mode-option-content">
-                  <strong>Traditional</strong>
-                  <small>Loop classico continuo.</small>
+                  <strong>Clássico</strong>
+                  <small>Loop clássico contínuo.</small>
                 </span>
               </button>
               <button
@@ -120,8 +127,8 @@
               >
                 <span class="mode-option-icon" aria-hidden="true">&#127919;</span>
                 <span class="mode-option-content">
-                  <strong>Levels</strong>
-                  <small>Objetivos por nivel com escalada.</small>
+                  <strong>Níveis</strong>
+                  <small>Objetivos por nível com escalada.</small>
                 </span>
               </button>
               <button
@@ -136,10 +143,45 @@
                   <small>Floors, bosses e build de poderes.</small>
                 </span>
               </button>
+              <button id="menu-settings-option" type="button" class="mode-option">
+                <span class="mode-option-icon" aria-hidden="true">&#9881;</span>
+                <span class="mode-option-content">
+                  <strong>Configurações</strong>
+                  <small>Tema e controles mobile.</small>
+                </span>
+              </button>
             </div>
             <div class="menu-controls">
-              <button id="start-btn" type="button">Iniciar Traditional</button>
+              <button id="start-btn" type="button">Iniciar Clássico</button>
             </div>
+            <section id="settings-menu" class="settings-menu hidden" aria-label="Configurações">
+              <div class="settings-group">
+                <h3>Tema</h3>
+                <label>
+                  <input type="radio" name="theme-choice" value="light" />
+                  Claro
+                </label>
+                <label>
+                  <input type="radio" name="theme-choice" value="dark" />
+                  Escuro
+                </label>
+              </div>
+              <div class="settings-group">
+                <h3>Controles no celular</h3>
+                <label>
+                  <input type="radio" name="mobile-control-choice" value="dpad" />
+                  D-pad
+                </label>
+                <label>
+                  <input type="radio" name="mobile-control-choice" value="swipe" />
+                  Gestos (swipe)
+                </label>
+                <label>
+                  <input type="radio" name="mobile-control-choice" value="tap" />
+                  Toque direcional
+                </label>
+              </div>
+            </section>
 
             <section id="souls-menu" class="souls-menu hidden" aria-label="Souls setup">
               <p class="souls-summary">
@@ -157,12 +199,12 @@
 
           <section id="game-screen" class="game-screen hidden" aria-label="Game view">
             <section class="hud" aria-label="Game details">
-              <span>Mode: <strong id="mode-label">-</strong></span>
-              <span class="levels-only">Level: <strong id="level-value">-</strong></span>
+              <span>Modo: <strong id="mode-label">-</strong></span>
+              <span class="levels-only">Nível: <strong id="level-value">-</strong></span>
               <span class="levels-only"
-                >Progress: <strong id="level-progress">-</strong></span
+                >Progresso: <strong id="level-progress">-</strong></span
               >
-              <span class="levels-only">Shield: <strong id="shield-time">0.0s</strong></span>
+              <span class="levels-only">Escudo: <strong id="shield-time">0.0s</strong></span>
               <span class="souls-only">Andar: <strong id="souls-floor">-</strong></span>
               <span class="souls-only">Ciclo: <strong id="souls-cycle">-</strong></span>
               <span class="souls-only">Fase: <strong id="souls-stage">-</strong></span>
@@ -191,34 +233,54 @@
                 id="floating-pause-btn"
                 class="floating-pause-btn hidden"
                 type="button"
-                aria-label="Pause or resume"
+                aria-label="Pausar ou retomar"
               >
-                Pause
+                Pausar
               </button>
             </section>
 
             <section class="actions" aria-label="Game actions">
-              <button id="pause-btn" type="button">Pause</button>
-              <button id="restart-btn" type="button">Restart</button>
-              <button id="menu-btn" type="button">Back to menu</button>
+              <button id="pause-btn" type="button">Pausar</button>
+              <button id="restart-btn" type="button">Reiniciar</button>
+              <button id="menu-btn" type="button">Voltar ao menu</button>
             </section>
 
             <section class="touch-controls" aria-label="Directional controls">
-              <button type="button" data-direction="UP">Up</button>
+              <button type="button" data-direction="UP">Cima</button>
               <div class="touch-row">
-                <button type="button" data-direction="LEFT">Left</button>
-                <button type="button" data-direction="DOWN">Down</button>
-                <button type="button" data-direction="RIGHT">Right</button>
+                <button type="button" data-direction="LEFT">Esquerda</button>
+                <button type="button" data-direction="DOWN">Baixo</button>
+                <button type="button" data-direction="RIGHT">Direita</button>
               </div>
             </section>
 
             <p class="help">
-              Use arrow keys or WASD. Press Space/P to pause and R to restart.
+              Use setas ou WASD. Pressione Espaço/P para pausar e R para reiniciar.
             </p>
 
             <section id="souls-death-summary" class="souls-death-summary hidden">
               <span>Runas perdidas: <strong id="souls-death-runes">0</strong></span>
               <span>Eco criado: <strong id="souls-death-echo">0</strong></span>
+            </section>
+
+            <section id="gameover-panel" class="gameover-panel hidden" aria-label="Resumo de game over">
+              <div class="gameover-card">
+                <h2>Fim de Jogo</h2>
+                <p id="gameover-summary" class="gameover-summary">
+                  Você foi derrotado nesta run.
+                </p>
+                <div class="gameover-stats">
+                  <span>Modo: <strong id="gameover-mode">-</strong></span>
+                  <span>Pontos: <strong id="gameover-score">0</strong></span>
+                  <span>Tamanho: <strong id="gameover-length">0</strong></span>
+                  <span>Tempo: <strong id="gameover-time">00:00</strong></span>
+                  <span><span id="gameover-extra-title">Progresso</span>: <strong id="gameover-extra">-</strong></span>
+                </div>
+                <div class="gameover-actions">
+                  <button id="gameover-restart-btn" type="button">Jogar novamente</button>
+                  <button id="gameover-menu-btn" type="button">Menu principal</button>
+                </div>
+              </div>
             </section>
           </section>
         </section>
@@ -238,10 +300,10 @@
         <div class="souls-reward-card">
           <h3>Recompensa do Boss</h3>
           <p class="souls-reward-help">
-            Escolha um poder para sua build. Você pode rerollar uma vez por 30 runas.
+            Escolha um poder para sua build. Você pode rerolar uma vez por 30 runas.
           </p>
           <div id="souls-reward-options" class="souls-reward-options"></div>
-          <button id="souls-reroll-btn" type="button">Reroll (30)</button>
+          <button id="souls-reroll-btn" type="button">Rerolar (30)</button>
         </div>
       </section>
     </main>

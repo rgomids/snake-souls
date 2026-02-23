@@ -94,6 +94,12 @@ Sempre que alterar comportamento relevante:
 - listar novos atalhos/comandos/flags quando houver;
 - manter exemplos de execução/teste atualizados.
 
+## 9.1) Controle de versão visível
+
+- O número de versão do jogo deve ser mantido em `src/main.js` (constante `GAME_VERSION`).
+- Ao concluir qualquer alteração funcional/visual relevante, incrementar a versão e refletir no menu principal (`#game-version`).
+- A entrega deve mencionar explicitamente a versão resultante.
+
 ## 10) Definição de pronto (DoD)
 
 Uma tarefa só está pronta quando:

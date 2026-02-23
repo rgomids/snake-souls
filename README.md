@@ -1,6 +1,6 @@
-# Snake - Traditional, Levels e Souls
+# Snake Souls - Traditional, Levels e Souls
 
-Jogo Snake em HTML/CSS/JS puro, sem dependências externas de runtime.
+Jogo Snake Souls em HTML/CSS/JS puro, sem dependências externas de runtime.
 
 Este projeto contém:
 - Modo **Traditional** (clássico)
@@ -58,10 +58,12 @@ php -S localhost:8000
 
 ### Controles on-screen/mobile
 - Menu inicial: selecione o modo pelos botões com ícones e clique em `Iniciar`.
-- No Souls em gameplay ativo: D-pad fixo e botão de pausa flutuante.
+- No menu principal, há a opção `Configurações` para tema e controles mobile.
+- No Souls em gameplay ativo: botão de pausa flutuante com suporte a toque.
 - No Souls, manter direção pressionada no D-pad também consome estamina para boost.
-- Fora do modo imersivo: botões direcionais `Up/Left/Down/Right` abaixo do board.
-- Botões de ação: `Pause`, `Restart`, `Back to menu`.
+- Em mobile, é possível escolher entre `D-pad`, `Gestos (swipe)` e `Toque direcional`.
+- Fora do modo imersivo: botões direcionais `Cima/Esquerda/Baixo/Direita` abaixo do board.
+- Botões de ação: `Pausar`, `Reiniciar`, `Voltar ao menu`.
 
 ### Observação de velocidade (estado atual)
 - Há redução global de velocidade base da cobra.
@@ -166,9 +168,12 @@ Contém:
 
 ## Área central
 - Menu inicial centralizado com botões de modo (ícones dedicados por opção)
+- Versão do jogo visível no menu principal
 - Configuração de Souls (seleção de cobra/desbloqueio)
 - No Souls ativo: board em tela cheia com overlays (seta de sigilo, mensagem e countdown)
 - Em pause/game over Souls: HUD e sidebars retornam com animação de slide-in
+- Em mobile, instruções ficam minimizadas por padrão e podem ser expandidas
+- Tela dedicada de `Game Over` com resumo da run e atalhos para reiniciar/menu
 - Modal de recompensa
 
 ## Sidebar direita

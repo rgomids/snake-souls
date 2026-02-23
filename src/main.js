@@ -24,6 +24,8 @@ const {
 const GRID_WIDTH = 20;
 const GRID_HEIGHT = 20;
 const THEME_KEY = "snake-theme";
+const SETTINGS_KEY = "snake-settings-v1";
+const GAME_VERSION = "v0.12.0";
 
 const SCREEN_MENU = "menu";
 const SCREEN_PLAYING = "playing";
@@ -39,8 +41,11 @@ const gameScreenElement = document.getElementById("game-screen");
 const menuModeButtons = Array.from(
   document.querySelectorAll("[data-mode-option]")
 );
+const menuSettingsOptionButton = document.getElementById("menu-settings-option");
 const startButton = document.getElementById("start-btn");
 const menuButton = document.getElementById("menu-btn");
+const settingsMenuElement = document.getElementById("settings-menu");
+const gameVersionElement = document.getElementById("game-version");
 
 const soulsMenuElement = document.getElementById("souls-menu");
 const soulsSnakesElement = document.getElementById("souls-snakes");
@@ -70,6 +75,15 @@ const pauseButton = document.getElementById("pause-btn");
 const restartButton = document.getElementById("restart-btn");
 const themeToggle = document.getElementById("theme-toggle");
 const touchButtons = Array.from(document.querySelectorAll("[data-direction]"));
+const themeChoiceInputs = Array.from(
+  document.querySelectorAll('input[name="theme-choice"]')
+);
+const mobileControlChoiceInputs = Array.from(
+  document.querySelectorAll('input[name="mobile-control-choice"]')
+);
+const instructionsToggleButton = document.getElementById("instructions-toggle-btn");
+const instructionsListElement = document.getElementById("instructions-list");
+const gameAreaElement = document.querySelector(".game-area");
 
 const soulsRewardModalElement = document.getElementById("souls-reward-modal");
 const soulsRewardOptionsElement = document.getElementById("souls-reward-options");
@@ -90,8 +104,19 @@ const devPanelElement = document.getElementById("dev-panel");
 const devCodeInputElement = document.getElementById("dev-code-input");
 const devCodeApplyButton = document.getElementById("dev-code-apply");
 const devCodeFeedbackElement = document.getElementById("dev-code-feedback");
+const gameOverPanelElement = document.getElementById("gameover-panel");
+const gameOverSummaryElement = document.getElementById("gameover-summary");
+const gameOverModeElement = document.getElementById("gameover-mode");
+const gameOverScoreElement = document.getElementById("gameover-score");
+const gameOverLengthElement = document.getElementById("gameover-length");
+const gameOverTimeElement = document.getElementById("gameover-time");
+const gameOverExtraTitleElement = document.getElementById("gameover-extra-title");
+const gameOverExtraElement = document.getElementById("gameover-extra");
+const gameOverRestartButton = document.getElementById("gameover-restart-btn");
+const gameOverMenuButton = document.getElementById("gameover-menu-btn");
 
 const initialSoulsProfile = loadSoulsProfileFromStorage();
+const initialUiSettings = loadUiSettings();
 
 const appState = {
   screen: SCREEN_MENU,
@@ -110,6 +135,12 @@ const appState = {
   soulsProfile: initialSoulsProfile,
   selectedSoulsSnakeId: initialSoulsProfile.selectedSnakeId,
   selectedMenuMode: "traditional",
+  uiSettings: initialUiSettings,
+  isSettingsOpen: false,
+  mobileInstructionsExpanded: false,
+  runStartedAtMs: 0,
+  runEndedAtMs: null,
+  gestureSession: null,
 };
 
 const initiallySelectedMenuButton = menuModeButtons.find((button) =>
@@ -150,6 +181,53 @@ function setSoulsProfile(profile) {
   appState.soulsProfile = safeProfile;
   appState.selectedSoulsSnakeId = safeProfile.selectedSnakeId;
   saveSoulsProfile(safeProfile);
+}
+
+function normalizeMobileControl(value) {
+  if (value === "swipe" || value === "tap") {
+    return value;
+  }
+  return "dpad";
+}
+
+function loadUiSettings() {
+  const fallback = {
+    mobileControl: "dpad",
+  };
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) {
+      return fallback;
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      mobileControl: normalizeMobileControl(parsed?.mobileControl),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveUiSettings(settings) {
+  try {
+    const payload = JSON.stringify({
+      mobileControl: normalizeMobileControl(settings?.mobileControl),
+    });
+    window.localStorage.setItem(SETTINGS_KEY, payload);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function setUiSettings(partial) {
+  appState.uiSettings = {
+    ...appState.uiSettings,
+    ...partial,
+  };
+  appState.uiSettings.mobileControl = normalizeMobileControl(
+    appState.uiSettings.mobileControl
+  );
+  saveUiSettings(appState.uiSettings);
 }
 
 function syncSoulsProfileFromModeState() {
@@ -203,10 +281,15 @@ function getInitialTheme() {
   return "light";
 }
 
+function getCurrentTheme() {
+  const theme = document.documentElement.getAttribute("data-theme");
+  return theme === "dark" ? "dark" : "light";
+}
+
 function formatModeLabel(mode) {
-  if (mode === "levels") return "Levels";
+  if (mode === "levels") return "Níveis";
   if (mode === "souls") return "Souls";
-  return "Traditional";
+  return "Clássico";
 }
 
 function normalizeMenuMode(mode) {
@@ -233,7 +316,7 @@ function formatSoulsStage(souls) {
 
 function getStatusText() {
   if (!appState.modeState) {
-    return "Ready";
+    return "Pronto";
   }
 
   if (appState.modeState.mode === "souls" && appState.modeState.souls.reward) {
@@ -241,14 +324,14 @@ function getStatusText() {
   }
 
   if (appState.modeState.isGameOver) {
-    return "Game over";
+    return "Fim de jogo";
   }
 
   if (appState.modeState.isPaused) {
-    return "Paused";
+    return "Pausado";
   }
 
-  return "Running";
+  return "Em jogo";
 }
 
 function setScreen(screen) {
@@ -278,6 +361,19 @@ function setSoulsUiDataset(modeState) {
     !modeState.souls.reward;
 
   appElement.dataset.soulsUi = isImmersiveSouls ? "immersive" : "panel";
+}
+
+function setMobileControlDataset() {
+  appElement.dataset.mobileControl = normalizeMobileControl(
+    appState.uiSettings.mobileControl
+  );
+}
+
+function isMobileViewport() {
+  const coarsePointer =
+    window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  const smallViewport = window.innerWidth <= 960;
+  return coarsePointer || smallViewport;
 }
 
 function getViewportAspectRatio() {
@@ -639,6 +735,13 @@ function pickRandomPowerOptions(powers) {
 function setModeStateGameOver(isGameOver) {
   if (!appState.modeState) {
     return;
+  }
+
+  if (isGameOver && !appState.runEndedAtMs) {
+    appState.runEndedAtMs = Date.now();
+  }
+  if (!isGameOver) {
+    appState.runEndedAtMs = null;
   }
 
   appState.modeState = {
@@ -1053,7 +1156,7 @@ function renderFloatingPause(modeState) {
     return;
   }
 
-  floatingPauseButton.textContent = modeState.isPaused ? "Resume" : "Pause";
+  floatingPauseButton.textContent = modeState.isPaused ? "Retomar" : "Pausar";
 }
 
 function stopTicker() {
@@ -1159,6 +1262,9 @@ function runSoulsFrame(timestamp) {
       syncSoulsProfileFromModeState();
 
       if (appState.modeState.isGameOver) {
+        if (!appState.runEndedAtMs) {
+          appState.runEndedAtMs = Date.now();
+        }
         setScreen(SCREEN_GAMEOVER);
         break;
       }
@@ -1314,6 +1420,120 @@ function renderMenuModeOptions() {
   startButton.textContent = `Iniciar ${formatModeLabel(selectedMode)}`;
 }
 
+function renderMenuSettingsPanel() {
+  if (!settingsMenuElement) {
+    return;
+  }
+
+  settingsMenuElement.classList.toggle("hidden", !appState.isSettingsOpen);
+  if (menuSettingsOptionButton) {
+    menuSettingsOptionButton.classList.toggle("active", appState.isSettingsOpen);
+    menuSettingsOptionButton.setAttribute(
+      "aria-pressed",
+      appState.isSettingsOpen ? "true" : "false"
+    );
+  }
+
+  const theme = getCurrentTheme();
+  for (const input of themeChoiceInputs) {
+    input.checked = input.value === theme;
+  }
+
+  const mobileControl = normalizeMobileControl(appState.uiSettings.mobileControl);
+  for (const input of mobileControlChoiceInputs) {
+    input.checked = input.value === mobileControl;
+  }
+}
+
+function renderVersionLabel() {
+  if (!gameVersionElement) {
+    return;
+  }
+  gameVersionElement.textContent = GAME_VERSION;
+}
+
+function renderInstructionsPanel() {
+  if (!instructionsToggleButton || !instructionsListElement) {
+    return;
+  }
+
+  const mobile = isMobileViewport();
+  const collapsed = mobile && !appState.mobileInstructionsExpanded;
+  instructionsListElement.classList.toggle("hidden", collapsed);
+  instructionsToggleButton.classList.toggle("hidden", !mobile);
+  instructionsToggleButton.textContent = collapsed ? "Expandir" : "Minimizar";
+  instructionsToggleButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  const panel = instructionsToggleButton.closest(".instructions-panel");
+  if (panel) {
+    panel.classList.toggle("mobile-collapsed", collapsed);
+  }
+}
+
+function formatDurationMs(durationMs) {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function getCurrentRunDurationMs(modeState) {
+  if (!modeState) {
+    return 0;
+  }
+  if (!appState.runStartedAtMs) {
+    return 0;
+  }
+  const endedAt = appState.runEndedAtMs ?? Date.now();
+  return Math.max(0, endedAt - appState.runStartedAtMs);
+}
+
+function renderGameOverPanel(modeState) {
+  if (
+    !gameOverPanelElement ||
+    !gameOverSummaryElement ||
+    !gameOverModeElement ||
+    !gameOverScoreElement ||
+    !gameOverLengthElement ||
+    !gameOverTimeElement ||
+    !gameOverExtraTitleElement ||
+    !gameOverExtraElement
+  ) {
+    return;
+  }
+
+  const isGameOver = Boolean(modeState && modeState.isGameOver);
+  gameOverPanelElement.classList.toggle("hidden", !isGameOver);
+  if (!isGameOver) {
+    return;
+  }
+
+  if (!appState.runEndedAtMs) {
+    appState.runEndedAtMs = Date.now();
+  }
+
+  gameOverModeElement.textContent = formatModeLabel(modeState.mode);
+  gameOverScoreElement.textContent = String(modeState.base.score);
+  gameOverLengthElement.textContent = String(modeState.base.snake.length);
+  gameOverTimeElement.textContent = formatDurationMs(getCurrentRunDurationMs(modeState));
+
+  if (modeState.mode === "souls") {
+    gameOverSummaryElement.textContent =
+      "Você foi derrotado. Reorganize sua build e tente novamente.";
+    gameOverExtraTitleElement.textContent = "Andar alcançado";
+    gameOverExtraElement.textContent = `${modeState.souls.floor} (ciclo ${modeState.souls.cycle})`;
+  } else if (modeState.mode === "levels") {
+    gameOverSummaryElement.textContent =
+      "Fim de partida. Você pode reiniciar para buscar um nível maior.";
+    gameOverExtraTitleElement.textContent = "Nível alcançado";
+    gameOverExtraElement.textContent = String(modeState.level);
+  } else {
+    gameOverSummaryElement.textContent =
+      "Fim de partida. Tente uma rota mais segura na próxima tentativa.";
+    gameOverExtraTitleElement.textContent = "Maior sequência";
+    gameOverExtraElement.textContent = String(modeState.base.snake.length);
+  }
+}
+
 function renderSoulsMenu() {
   const isSoulsMode = getSelectedMenuMode() === "souls";
   soulsMenuElement.classList.toggle("hidden", !isSoulsMode);
@@ -1406,7 +1626,7 @@ function renderButtons(modeState) {
     hasGame && modeState.mode === "souls" && Boolean(modeState.souls.reward);
 
   pauseButton.disabled = !hasGame || isMenu || isGameOver || waitingReward;
-  pauseButton.textContent = hasGame && modeState.isPaused ? "Resume" : "Pause";
+  pauseButton.textContent = hasGame && modeState.isPaused ? "Retomar" : "Pausar";
   restartButton.disabled = !hasGame || isMenu;
   menuButton.disabled = isMenu;
   startButton.disabled = false;
@@ -1414,6 +1634,7 @@ function renderButtons(modeState) {
 
 function render() {
   setModeDataset();
+  setMobileControlDataset();
 
   const modeState = appState.modeState;
   setSoulsUiDataset(modeState);
@@ -1435,6 +1656,10 @@ function render() {
   renderButtons(modeState);
   renderSoulsRewardModal();
   renderMenuModeOptions();
+  renderMenuSettingsPanel();
+  renderVersionLabel();
+  renderInstructionsPanel();
+  renderGameOverPanel(modeState);
   renderSoulsMenu();
   renderBossIntelSidebar();
   renderSoulsPowersSidebar(modeState);
@@ -1442,6 +1667,7 @@ function render() {
 }
 
 function startGame(mode) {
+  appState.isSettingsOpen = false;
   if (mode === "souls") {
     appState.modeState = createModeState({
       mode,
@@ -1460,6 +1686,8 @@ function startGame(mode) {
   appState.soulsPendingDirection = null;
   appState.pressedDirections.clear();
   appState.rewardRenderKey = null;
+  appState.runStartedAtMs = Date.now();
+  appState.runEndedAtMs = null;
   syncSoulsProfileFromModeState();
   setScreen(SCREEN_PLAYING);
   ensureGrid(appState.modeState.base.width, appState.modeState.base.height);
@@ -1476,6 +1704,8 @@ function restartGame() {
   appState.soulsPendingDirection = null;
   appState.pressedDirections.clear();
   appState.rewardRenderKey = null;
+  appState.runStartedAtMs = Date.now();
+  appState.runEndedAtMs = null;
   syncSoulsProfileFromModeState();
 
   setScreen(SCREEN_PLAYING);
@@ -1488,6 +1718,8 @@ function backToMenu() {
   syncSoulsProfileFromModeState();
   stopTicker();
   appState.rewardRenderKey = null;
+  appState.runStartedAtMs = 0;
+  appState.runEndedAtMs = null;
   appState.modeState = null;
   setScreen(SCREEN_MENU);
   render();
@@ -1505,11 +1737,75 @@ function onTick() {
   syncSoulsProfileFromModeState();
 
   if (appState.modeState.isGameOver) {
+    if (!appState.runEndedAtMs) {
+      appState.runEndedAtMs = Date.now();
+    }
     setScreen(SCREEN_GAMEOVER);
   }
 
   render();
   ensureTickerState();
+}
+
+function togglePauseFromUi(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (!appState.modeState) return;
+  if (appState.modeState.isGameOver) return;
+  if (appState.modeState.mode === "souls" && appState.modeState.souls.reward) {
+    return;
+  }
+
+  appState.modeState = toggleModePause(appState.modeState);
+  render();
+  ensureTickerState();
+}
+
+function queueDirectionForCurrentMode(direction) {
+  if (!appState.modeState) return;
+  if (appState.modeState.mode === "souls" && appState.modeState.souls.reward) {
+    return;
+  }
+
+  appState.pressedDirections.add(direction);
+  if (appState.modeState.mode === "souls") {
+    appState.soulsPendingDirection = direction;
+  } else {
+    appState.modeState = queueModeDirection(appState.modeState, direction);
+    ensureTickerState();
+  }
+}
+
+function releaseDirectionForCurrentMode(direction) {
+  appState.pressedDirections.delete(direction);
+  if (appState.modeState && appState.modeState.mode !== "souls") {
+    ensureTickerState();
+  }
+}
+
+function getDirectionFromDelta(deltaX, deltaY) {
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0 ? "RIGHT" : "LEFT";
+  }
+  return deltaY >= 0 ? "DOWN" : "UP";
+}
+
+function shouldUseGestureControls() {
+  if (!appState.modeState) {
+    return false;
+  }
+  if (appState.screen === SCREEN_MENU) {
+    return false;
+  }
+  if (appState.modeState.isGameOver || appState.modeState.isPaused) {
+    return false;
+  }
+  if (!isMobileViewport()) {
+    return false;
+  }
+  return appState.uiSettings.mobileControl !== "dpad";
 }
 
 document.addEventListener("keydown", (event) => {
@@ -1545,22 +1841,14 @@ document.addEventListener("keydown", (event) => {
   const direction = directionFromInputKey(event.key);
   if (direction) {
     event.preventDefault();
-    appState.pressedDirections.add(direction);
-    if (appState.modeState.mode === "souls") {
-      appState.soulsPendingDirection = direction;
-    } else {
-      appState.modeState = queueModeDirection(appState.modeState, direction);
-      ensureTickerState();
-    }
+    queueDirectionForCurrentMode(direction);
     return;
   }
 
   const key = event.key.toLowerCase();
   if ((key === " " || key === "p") && !appState.modeState.isGameOver) {
     event.preventDefault();
-    appState.modeState = toggleModePause(appState.modeState);
-    render();
-    ensureTickerState();
+    togglePauseFromUi();
     return;
   }
 
@@ -1576,17 +1864,19 @@ document.addEventListener("keyup", (event) => {
     return;
   }
 
-  appState.pressedDirections.delete(direction);
+  releaseDirectionForCurrentMode(direction);
+});
+
+window.addEventListener("blur", () => {
+  appState.pressedDirections.clear();
+  appState.gestureSession = null;
   if (appState.modeState && appState.modeState.mode !== "souls") {
     ensureTickerState();
   }
 });
 
-window.addEventListener("blur", () => {
-  appState.pressedDirections.clear();
-  if (appState.modeState && appState.modeState.mode !== "souls") {
-    ensureTickerState();
-  }
+window.addEventListener("resize", () => {
+  render();
 });
 
 startButton.addEventListener("click", () => {
@@ -1601,18 +1891,22 @@ for (const button of menuModeButtons) {
 }
 
 pauseButton.addEventListener("click", () => {
-  if (!appState.modeState) return;
-  appState.modeState = toggleModePause(appState.modeState);
-  render();
-  ensureTickerState();
+  if (!window.PointerEvent) {
+    togglePauseFromUi();
+  }
+});
+pauseButton.addEventListener("pointerdown", (event) => {
+  togglePauseFromUi(event);
 });
 
 if (floatingPauseButton) {
   floatingPauseButton.addEventListener("click", () => {
-    if (!appState.modeState) return;
-    appState.modeState = toggleModePause(appState.modeState);
-    render();
-    ensureTickerState();
+    if (!window.PointerEvent) {
+      togglePauseFromUi();
+    }
+  });
+  floatingPauseButton.addEventListener("pointerdown", (event) => {
+    togglePauseFromUi(event);
   });
 }
 
@@ -1623,6 +1917,18 @@ restartButton.addEventListener("click", () => {
 menuButton.addEventListener("click", () => {
   backToMenu();
 });
+
+if (gameOverRestartButton) {
+  gameOverRestartButton.addEventListener("click", () => {
+    restartGame();
+  });
+}
+
+if (gameOverMenuButton) {
+  gameOverMenuButton.addEventListener("click", () => {
+    backToMenu();
+  });
+}
 
 soulsUnlockButton.addEventListener("click", () => {
   const nextUnlock = SoulsProfile.getNextUnlock(appState.soulsProfile);
@@ -1662,6 +1968,39 @@ if (themeToggle) {
     const nextTheme = themeToggle.checked ? "dark" : "light";
     applyTheme(nextTheme);
     saveTheme(nextTheme);
+    render();
+  });
+}
+
+for (const input of themeChoiceInputs) {
+  input.addEventListener("change", () => {
+    if (!input.checked) return;
+    applyTheme(input.value === "dark" ? "dark" : "light");
+    saveTheme(getCurrentTheme());
+    render();
+  });
+}
+
+for (const input of mobileControlChoiceInputs) {
+  input.addEventListener("change", () => {
+    if (!input.checked) return;
+    setUiSettings({ mobileControl: input.value });
+    appState.gestureSession = null;
+    render();
+  });
+}
+
+if (menuSettingsOptionButton) {
+  menuSettingsOptionButton.addEventListener("click", () => {
+    appState.isSettingsOpen = !appState.isSettingsOpen;
+    render();
+  });
+}
+
+if (instructionsToggleButton) {
+  instructionsToggleButton.addEventListener("click", () => {
+    appState.mobileInstructionsExpanded = !appState.mobileInstructionsExpanded;
+    render();
   });
 }
 
@@ -1673,25 +2012,11 @@ for (const button of touchButtons) {
     if (event) {
       event.preventDefault();
     }
-    if (!appState.modeState) return;
-    if (appState.modeState.mode === "souls" && appState.modeState.souls.reward) {
-      return;
-    }
-
-    appState.pressedDirections.add(direction);
-    if (appState.modeState.mode === "souls") {
-      appState.soulsPendingDirection = direction;
-    } else {
-      appState.modeState = queueModeDirection(appState.modeState, direction);
-      ensureTickerState();
-    }
+    queueDirectionForCurrentMode(direction);
   };
 
   const releaseDirection = () => {
-    appState.pressedDirections.delete(direction);
-    if (appState.modeState && appState.modeState.mode !== "souls") {
-      ensureTickerState();
-    }
+    releaseDirectionForCurrentMode(direction);
   };
 
   button.addEventListener("pointerdown", pressDirection);
@@ -1705,6 +2030,77 @@ for (const button of touchButtons) {
       pressDirection(event);
       releaseDirection();
     }
+  });
+}
+
+if (gameAreaElement) {
+  gameAreaElement.addEventListener("pointerdown", (event) => {
+    if (!shouldUseGestureControls()) {
+      return;
+    }
+    if (event.target.closest("button")) {
+      return;
+    }
+
+    appState.gestureSession = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      consumed: false,
+    };
+  });
+
+  gameAreaElement.addEventListener("pointermove", (event) => {
+    const session = appState.gestureSession;
+    if (!session || session.pointerId !== event.pointerId || session.consumed) {
+      return;
+    }
+    if (!shouldUseGestureControls()) {
+      return;
+    }
+
+    if (appState.uiSettings.mobileControl !== "swipe") {
+      return;
+    }
+
+    const deltaX = event.clientX - session.startX;
+    const deltaY = event.clientY - session.startY;
+    const distance = Math.hypot(deltaX, deltaY);
+    if (distance < 24) {
+      return;
+    }
+
+    const direction = getDirectionFromDelta(deltaX, deltaY);
+    queueDirectionForCurrentMode(direction);
+    releaseDirectionForCurrentMode(direction);
+    session.consumed = true;
+  });
+
+  gameAreaElement.addEventListener("pointerup", (event) => {
+    const session = appState.gestureSession;
+    if (!session || session.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (shouldUseGestureControls() && !session.consumed) {
+      const deltaX = event.clientX - session.startX;
+      const deltaY = event.clientY - session.startY;
+      const distance = Math.hypot(deltaX, deltaY);
+      const usesTapMode = appState.uiSettings.mobileControl === "tap";
+      const usesSwipeMode = appState.uiSettings.mobileControl === "swipe";
+
+      if ((usesTapMode && distance >= 8) || (usesSwipeMode && distance >= 24)) {
+        const direction = getDirectionFromDelta(deltaX, deltaY);
+        queueDirectionForCurrentMode(direction);
+        releaseDirectionForCurrentMode(direction);
+      }
+    }
+
+    appState.gestureSession = null;
+  });
+
+  gameAreaElement.addEventListener("pointercancel", () => {
+    appState.gestureSession = null;
   });
 }
 
