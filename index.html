@@ -95,15 +95,50 @@
           </section>
 
           <section id="menu-screen" class="menu-screen" aria-label="Game menu">
-            <h2>Menu</h2>
+            <h2>Escolha o modo</h2>
+            <p class="menu-help">
+              Selecione uma opcao abaixo e inicie a partida.
+            </p>
+            <div class="menu-options" aria-label="Game modes">
+              <button
+                type="button"
+                class="mode-option active"
+                data-mode-option="traditional"
+                aria-pressed="true"
+              >
+                <span class="mode-option-icon" aria-hidden="true">&#128013;</span>
+                <span class="mode-option-content">
+                  <strong>Traditional</strong>
+                  <small>Loop classico continuo.</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                class="mode-option"
+                data-mode-option="levels"
+                aria-pressed="false"
+              >
+                <span class="mode-option-icon" aria-hidden="true">&#127919;</span>
+                <span class="mode-option-content">
+                  <strong>Levels</strong>
+                  <small>Objetivos por nivel com escalada.</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                class="mode-option"
+                data-mode-option="souls"
+                aria-pressed="false"
+              >
+                <span class="mode-option-icon" aria-hidden="true">&#9876;</span>
+                <span class="mode-option-content">
+                  <strong>Souls</strong>
+                  <small>Floors, bosses e build de poderes.</small>
+                </span>
+              </button>
+            </div>
             <div class="menu-controls">
-              <label for="mode-select">Mode</label>
-              <select id="mode-select">
-                <option value="traditional">Traditional</option>
-                <option value="levels">Levels</option>
-                <option value="souls">Souls</option>
-              </select>
-              <button id="start-btn" type="button">Start</button>
+              <button id="start-btn" type="button">Iniciar Traditional</button>
             </div>
 
             <section id="souls-menu" class="souls-menu hidden" aria-label="Souls setup">

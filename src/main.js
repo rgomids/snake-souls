@@ -36,7 +36,9 @@ const appElement = document.querySelector(".app");
 const menuScreenElement = document.getElementById("menu-screen");
 const gameScreenElement = document.getElementById("game-screen");
 
-const modeSelect = document.getElementById("mode-select");
+const menuModeButtons = Array.from(
+  document.querySelectorAll("[data-mode-option]")
+);
 const startButton = document.getElementById("start-btn");
 const menuButton = document.getElementById("menu-btn");
 
@@ -101,7 +103,17 @@ const appState = {
   currentTickMs: null,
   soulsProfile: initialSoulsProfile,
   selectedSoulsSnakeId: initialSoulsProfile.selectedSnakeId,
+  selectedMenuMode: "traditional",
 };
+
+const initiallySelectedMenuButton = menuModeButtons.find((button) =>
+  button.classList.contains("active")
+);
+if (initiallySelectedMenuButton) {
+  appState.selectedMenuMode = normalizeMenuMode(
+    initiallySelectedMenuButton.dataset.modeOption
+  );
+}
 
 const cells = [];
 let gridWidth = 0;
@@ -187,6 +199,21 @@ function formatModeLabel(mode) {
   if (mode === "levels") return "Levels";
   if (mode === "souls") return "Souls";
   return "Traditional";
+}
+
+function normalizeMenuMode(mode) {
+  if (mode === "levels" || mode === "souls") {
+    return mode;
+  }
+  return "traditional";
+}
+
+function getSelectedMenuMode() {
+  return normalizeMenuMode(appState.selectedMenuMode);
+}
+
+function setSelectedMenuMode(mode) {
+  appState.selectedMenuMode = normalizeMenuMode(mode);
 }
 
 function formatSoulsStage(souls) {
@@ -555,7 +582,7 @@ function runDevCodeCommand(parsed) {
 
   if (command === "SCREEN") {
     if ((params.screen === "PLAYING" || params.screen === "GAMEOVER") && !appState.modeState) {
-      startGame(modeSelect.value);
+      startGame(getSelectedMenuMode());
     }
 
     if (params.screen === "MENU") {
@@ -1041,8 +1068,21 @@ function renderSoulsRewardModal() {
   soulsRerollButton.disabled = !canReroll;
 }
 
+function renderMenuModeOptions() {
+  const selectedMode = getSelectedMenuMode();
+
+  for (const button of menuModeButtons) {
+    const mode = normalizeMenuMode(button.dataset.modeOption);
+    const isActive = mode === selectedMode;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  }
+
+  startButton.textContent = `Iniciar ${formatModeLabel(selectedMode)}`;
+}
+
 function renderSoulsMenu() {
-  const isSoulsMode = modeSelect.value === "souls";
+  const isSoulsMode = getSelectedMenuMode() === "souls";
   soulsMenuElement.classList.toggle("hidden", !isSoulsMode);
 
   if (!isSoulsMode) {
@@ -1156,6 +1196,7 @@ function render() {
   renderSoulsCountdown(modeState);
   renderButtons(modeState);
   renderSoulsRewardModal();
+  renderMenuModeOptions();
   renderSoulsMenu();
   renderBossIntelSidebar();
   renderSoulsPowersSidebar(modeState);
@@ -1247,7 +1288,7 @@ document.addEventListener("keydown", (event) => {
 
   if (appState.screen === SCREEN_MENU && event.key === "Enter") {
     event.preventDefault();
-    startGame(modeSelect.value);
+    startGame(getSelectedMenuMode());
     return;
   }
 
@@ -1307,12 +1348,15 @@ window.addEventListener("blur", () => {
 });
 
 startButton.addEventListener("click", () => {
-  startGame(modeSelect.value);
+  startGame(getSelectedMenuMode());
 });
 
-modeSelect.addEventListener("change", () => {
-  render();
-});
+for (const button of menuModeButtons) {
+  button.addEventListener("click", () => {
+    setSelectedMenuMode(button.dataset.modeOption);
+    render();
+  });
+}
 
 pauseButton.addEventListener("click", () => {
   if (!appState.modeState) return;

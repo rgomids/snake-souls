@@ -350,18 +350,99 @@ h2 {
 .menu-screen {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px;
+  border-radius: 10px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+.menu-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.menu-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.mode-option {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.mode-option:hover {
+  border-color: var(--snake);
+}
+
+.mode-option.active {
+  border-color: var(--snake);
+  background: var(--cell-bg);
+}
+
+.mode-option-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  flex: 0 0 34px;
+  line-height: 1;
+  border: 1px solid var(--line);
+}
+
+.mode-option[data-mode-option="traditional"] .mode-option-icon {
+  color: var(--snake-head);
+  background: rgba(31, 122, 70, 0.14);
+}
+
+.mode-option[data-mode-option="levels"] .mode-option-icon {
+  color: #896100;
+  background: rgba(224, 184, 38, 0.22);
+}
+
+.mode-option[data-mode-option="souls"] .mode-option-icon {
+  color: #6a3ab4;
+  background: rgba(142, 93, 230, 0.18);
+}
+
+.mode-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mode-option-content strong {
+  font-size: 0.95rem;
+}
+
+.mode-option-content small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
 .menu-controls {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.menu-controls button {
+  min-width: 190px;
 }
 
 .souls-menu {
@@ -437,15 +518,6 @@ h2 {
   font-size: 0.9rem;
 }
 
-select {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--text);
-  padding: 8px 10px;
-  font-size: 0.95rem;
-}
-
 .game-screen {
   display: flex;
   flex-direction: column;
@@ -470,6 +542,27 @@ select {
 .app[data-mode="traditional"] .souls-only,
 .app[data-mode="levels"] .souls-only {
   display: none;
+}
+
+.app[data-screen="menu"] .app-shell {
+  grid-template-columns: 1fr;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.app[data-screen="menu"] .sidebar {
+  display: none;
+}
+
+.app[data-screen="menu"] .scoreboard {
+  display: none;
+}
+
+.app[data-screen="menu"] .main-pane {
+  min-height: calc(100vh - 72px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .game-area {
@@ -706,5 +799,9 @@ button:disabled {
 @media (max-width: 960px) {
   .app-shell {
     grid-template-columns: 1fr;
+  }
+
+  .app[data-screen="menu"] .main-pane {
+    min-height: auto;
   }
 }
