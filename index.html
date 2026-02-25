@@ -33,15 +33,15 @@
           <section class="sidebar-card legend-panel">
             <h2>Legenda dos blocos</h2>
             <div class="legend-list" aria-label="Legenda">
-              <div class="legend-item"><span class="legend-swatch head"></span><span>Cabeça da cobra</span></div>
-              <div class="legend-item"><span class="legend-swatch snake"></span><span>Corpo da cobra</span></div>
-              <div class="legend-item"><span class="legend-swatch food"></span><span>Comida</span></div>
-              <div class="legend-item"><span class="legend-swatch barrier"></span><span>Barreira</span></div>
-              <div class="legend-item"><span class="legend-swatch enemy"></span><span>Inimigo / Boss</span></div>
-              <div class="legend-item"><span class="legend-swatch power-up"></span><span>Power-up (Levels)</span></div>
-              <div class="legend-item"><span class="legend-swatch sigil"></span><span>Sigilo (Souls)</span></div>
-              <div class="legend-item"><span class="legend-swatch hazard"></span><span>Hazard</span></div>
-              <div class="legend-item"><span class="legend-swatch echo"></span><span>Eco</span></div>
+              <div class="legend-item"><span class="legend-swatch head" data-icon="🐍"></span><span>Cabeça da cobra</span></div>
+              <div class="legend-item"><span class="legend-swatch snake" data-icon="▣"></span><span>Corpo da cobra</span></div>
+              <div class="legend-item"><span class="legend-swatch food" data-icon="🍎"></span><span>Comida</span></div>
+              <div class="legend-item"><span class="legend-swatch barrier" data-icon="🧱"></span><span>Barreira</span></div>
+              <div class="legend-item"><span class="legend-swatch enemy" data-icon="👹"></span><span>Inimigo / Boss</span></div>
+              <div class="legend-item"><span class="legend-swatch power-up" data-icon="⚡"></span><span>Power-up (Levels)</span></div>
+              <div class="legend-item"><span class="legend-swatch sigil" data-icon="✦"></span><span>Sigilo (Souls)</span></div>
+              <div class="legend-item"><span class="legend-swatch hazard" data-icon="☠"></span><span>Hazard</span></div>
+              <div class="legend-item"><span class="legend-swatch echo" data-icon="◎"></span><span>Eco</span></div>
             </div>
           </section>
           <section class="sidebar-card systems-panel">
@@ -55,9 +55,8 @@
           <section class="sidebar-card modes-panel">
             <h2>Modos de jogo</h2>
             <div class="sidebar-text-list">
-              <p><strong>Traditional:</strong> loop clássico contínuo.</p>
-              <p><strong>Levels:</strong> objetivos por nível, com escalada de dificuldade.</p>
-              <p><strong>Souls:</strong> floors/ciclos, bosses, poderes e economia de runas.</p>
+              <p><strong>Souls:</strong> modo principal com floors/ciclos, bosses, poderes e economia de runas.</p>
+              <p><strong>Legacy:</strong> modos clássicos ficam ocultos e podem aparecer como easter egg.</p>
             </div>
           </section>
           <section class="sidebar-card boss-intel-panel">
@@ -101,17 +100,21 @@
           </section>
 
           <section id="menu-screen" class="menu-screen" aria-label="Game menu">
-            <h2>Escolha o modo</h2>
+            <h2>Inicie sua run</h2>
             <p class="menu-help">
-              Selecione uma opção abaixo e inicie a partida.
+              Souls é o modo padrão. Os modos legacy podem surgir por easter egg.
+            </p>
+            <p id="menu-easter-egg-status" class="menu-easter-egg-status hidden" aria-live="polite">
+              Modos secretos desbloqueados nesta sessão de menu.
             </p>
             <p class="menu-version">Versão: <strong id="game-version">-</strong></p>
             <div class="menu-options" aria-label="Game modes">
               <button
                 type="button"
-                class="mode-option active"
+                class="mode-option legacy-mode hidden"
                 data-mode-option="traditional"
-                aria-pressed="true"
+                aria-pressed="false"
+                aria-hidden="true"
               >
                 <span class="mode-option-icon" aria-hidden="true">&#128013;</span>
                 <span class="mode-option-content">
@@ -121,9 +124,10 @@
               </button>
               <button
                 type="button"
-                class="mode-option"
+                class="mode-option legacy-mode hidden"
                 data-mode-option="levels"
                 aria-pressed="false"
+                aria-hidden="true"
               >
                 <span class="mode-option-icon" aria-hidden="true">&#127919;</span>
                 <span class="mode-option-content">
@@ -133,9 +137,9 @@
               </button>
               <button
                 type="button"
-                class="mode-option"
+                class="mode-option active"
                 data-mode-option="souls"
-                aria-pressed="false"
+                aria-pressed="true"
               >
                 <span class="mode-option-icon" aria-hidden="true">&#9876;</span>
                 <span class="mode-option-content">
@@ -147,25 +151,14 @@
                 <span class="mode-option-icon" aria-hidden="true">&#9881;</span>
                 <span class="mode-option-content">
                   <strong>Configurações</strong>
-                  <small>Tema e controles mobile.</small>
+                  <small>Controles mobile.</small>
                 </span>
               </button>
             </div>
             <div class="menu-controls">
-              <button id="start-btn" type="button">Iniciar Clássico</button>
+              <button id="start-btn" type="button">Iniciar Souls</button>
             </div>
             <section id="settings-menu" class="settings-menu hidden" aria-label="Configurações">
-              <div class="settings-group">
-                <h3>Tema</h3>
-                <label>
-                  <input type="radio" name="theme-choice" value="light" />
-                  Claro
-                </label>
-                <label>
-                  <input type="radio" name="theme-choice" value="dark" />
-                  Escuro
-                </label>
-              </div>
               <div class="settings-group">
                 <h3>Controles no celular</h3>
                 <label>
@@ -314,6 +307,7 @@
     <script src="./src/souls-world.js"></script>
     <script src="./src/snake-modes.js"></script>
     <script src="./src/dev-codes.js"></script>
+    <script src="./src/easter-eggs.js"></script>
     <script src="./src/souls-loop.js"></script>
     <script src="./src/souls-ui-helpers.js"></script>
     <script src="./src/main.js"></script>
