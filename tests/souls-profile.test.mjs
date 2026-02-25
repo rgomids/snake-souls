@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const SoulsData = require("../src/souls-data.js");
-const SoulsProfile = require("../src/souls-profile.js");
+const SoulsData = require("../src/data/souls-data.js");
+const SoulsProfile = require("../src/profile/souls-profile.js");
 
 test("loads default profile when storage is invalid", () => {
   const profile = SoulsProfile.loadProfile("{not-json");

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { normalizeDevCode, parseDevCode } = require("../src/dev-codes.js");
+const { normalizeDevCode, parseDevCode } = require("../src/dev/dev-codes.js");
 
 test("normalizeDevCode trims and collapses spaces", () => {
   assert.equal(normalizeDevCode("  souls_floor   12  "), "souls_floor 12");

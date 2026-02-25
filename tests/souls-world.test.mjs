@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const SoulsWorld = require("../src/souls-world.js");
+const SoulsWorld = require("../src/world/souls-world.js");
 
 function cameraAt(x, y, size = 21) {
   return {

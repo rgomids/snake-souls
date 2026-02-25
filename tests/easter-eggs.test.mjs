@@ -8,7 +8,7 @@ const {
   normalizeKonamiKey,
   advanceSequence,
   createKonamiTracker,
-} = require("../src/easter-eggs.js");
+} = require("../src/input/easter-eggs.js");
 
 test("normalizeKonamiKey maps supported keyboard tokens", () => {
   assert.equal(normalizeKonamiKey("ArrowUp"), "UP");

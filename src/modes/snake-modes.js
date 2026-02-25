@@ -3,16 +3,16 @@
 
   const SnakeLogic =
     global.SnakeLogic ||
-    (typeof require !== "undefined" ? require("./snake-logic.js") : null);
+    (typeof require !== "undefined" ? require("../core/snake-logic.js") : null);
   const SoulsData =
     global.SoulsData ||
-    (typeof require !== "undefined" ? require("./souls-data.js") : null);
+    (typeof require !== "undefined" ? require("../data/souls-data.js") : null);
   const SoulsProfile =
     global.SoulsProfile ||
-    (typeof require !== "undefined" ? require("./souls-profile.js") : null);
+    (typeof require !== "undefined" ? require("../profile/souls-profile.js") : null);
   const SoulsWorld =
     global.SoulsWorld ||
-    (typeof require !== "undefined" ? require("./souls-world.js") : null);
+    (typeof require !== "undefined" ? require("../world/souls-world.js") : null);
 
   if (!SnakeLogic) {
     throw new Error("SnakeModes requires SnakeLogic.");

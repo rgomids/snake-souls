@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const SnakeLogic = require("../src/snake-logic.js");
+const SnakeLogic = require("../src/core/snake-logic.js");
 const {
   createModeState,
   queueModeDirection,
   restartModeState,
   stepModeState,
   toggleModePause,
-} = require("../src/snake-modes.js");
+} = require("../src/modes/snake-modes.js");
 
 function sequenceRng(values, fallback = 0) {
   let index = 0;

@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const {
   buildRewardRenderKey,
   canSelectReward,
-} = require("../src/souls-ui-helpers.js");
+} = require("../src/ui/souls-ui-helpers.js");
 
 test("buildRewardRenderKey returns same key for same reward and stacks", () => {
   const reward = {

@@ -3,7 +3,7 @@
 
   const SoulsData =
     global.SoulsData ||
-    (typeof require !== "undefined" ? require("./souls-data.js") : null);
+    (typeof require !== "undefined" ? require("../data/souls-data.js") : null);
 
   if (!SoulsData) {
     throw new Error("SoulsProfile requires SoulsData.");
