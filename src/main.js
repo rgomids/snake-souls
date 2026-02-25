@@ -25,7 +25,7 @@ const {
 const GRID_WIDTH = 20;
 const GRID_HEIGHT = 20;
 const SETTINGS_KEY = "snake-settings-v1";
-const GAME_VERSION = "v0.13.0";
+const GAME_VERSION = "v0.14.3";
 
 const SCREEN_MENU = "menu";
 const SCREEN_PLAYING = "playing";
@@ -664,10 +664,10 @@ function renderBoard(modeState, options = {}) {
   const snakeLength = modeState.base.snake.length;
   const variantId = modeState.mode === "souls" ? modeState.souls.selectedSnakeId : null;
   const variantColors = {
-    basica: ["#7a2a24", "#a33a32"],
-    veloz: ["#445f79", "#5f7f9e"],
-    tanque: ["#6d5140", "#92715a"],
-    vidente: ["#705944", "#8f7359"],
+    basica: ["#ff4332", "#f2684f"],
+    veloz: ["#4ebdff", "#2f90ff"],
+    tanque: ["#ffab72", "#df8150"],
+    vidente: ["#bb8cff", "#8f5eff"],
   };
   const getSnakeColor = (isHead) => {
     if (!variantId || !variantColors[variantId]) {
@@ -1319,7 +1319,7 @@ function shouldRunSoulsRaf(modeState) {
     return false;
   }
 
-  if (modeState.isPaused && modeState.souls.stageFlow?.phase === "idle") {
+  if (modeState.isPaused) {
     return false;
   }
 

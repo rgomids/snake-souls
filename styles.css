@@ -1,25 +1,25 @@
 :root {
-  --bg: #0d0d11;
-  --panel: #17171d;
-  --panel-strong: #1e1f27;
-  --text: #ece8df;
-  --muted: #9c9689;
-  --line: #322f36;
-  --cell-border: #29272d;
-  --cell-bg: #111117;
-  --snake: #a43a32;
-  --snake-head: #7a2a24;
-  --food: #d6604f;
-  --barrier: #6f6a68;
-  --enemy: #d1b389;
-  --minion: #9f8f76;
-  --telegraph: #b0743f;
-  --power: #c9a44a;
-  --sigil: #8e7f69;
-  --hazard: #b84836;
-  --echo: #d0bb7a;
-  --accent: #9d5b35;
-  --accent-strong: #ba6f43;
+  --bg: #07090f;
+  --panel: #131722;
+  --panel-strong: #1a2030;
+  --text: #f8f4eb;
+  --muted: #c6c1b6;
+  --line: #4b4f60;
+  --cell-border: #353b4d;
+  --cell-bg: #0b0f18;
+  --snake: #f2684f;
+  --snake-head: #ff4332;
+  --food: #ffd166;
+  --barrier: #8f99ad;
+  --enemy: #ffb36f;
+  --minion: #63d6a3;
+  --telegraph: #ff9252;
+  --power: #ffe27a;
+  --sigil: #8fd2ff;
+  --hazard: #ff5761;
+  --echo: #fff2a6;
+  --accent: #d98347;
+  --accent-strong: #f4a060;
   --shadow-deep: 0 18px 40px rgba(0, 0, 0, 0.55);
 }
 
@@ -126,17 +126,43 @@ body::before {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--muted);
+  color: var(--text);
   font-size: 0.86rem;
 }
 
 .legend-swatch {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+  position: relative;
   border-radius: 3px;
   border: 1px solid var(--line);
   background: var(--cell-bg);
-  flex: 0 0 14px;
+  flex: 0 0 16px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.legend-swatch::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 2px;
+  border: 1px solid rgba(10, 10, 13, 0.58);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.legend-swatch::after {
+  content: attr(data-icon);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  color: #11131a;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
 .legend-swatch.head {

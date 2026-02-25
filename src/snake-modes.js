@@ -28,7 +28,7 @@
   const POWER_UP_TTL_TICKS = 60;
   const HAZARD_TTL_MS = 500;
   const SOULS_COUNTDOWN_MS = 3000;
-  const SOULS_STAGE_MESSAGE_MS = 2000;
+  const SOULS_STAGE_MESSAGE_MS = 600;
   const ESPECTRO_TELEPORT_PREVIEW_MS =
     SoulsData?.ESPECTRO_TELEPORT_PREVIEW_MS ?? 1000;
   const ESPECTRO_TELEPORT_MAX_DISTANCE =
@@ -58,6 +58,16 @@
   const HUNTER_RECOVER_MS = 5000;
   const HUNTER_BOOST_MULT = 1.55;
   const HUNTER_FATIGUE_MULT = 0.7;
+  const SOULS_CHASE_DIRECTIONS = Object.freeze([
+    "UP",
+    "UP_RIGHT",
+    "RIGHT",
+    "DOWN_RIGHT",
+    "DOWN",
+    "DOWN_LEFT",
+    "LEFT",
+    "UP_LEFT",
+  ]);
 
   function keyForPosition(position) {
     return `${position.x},${position.y}`;
@@ -510,6 +520,47 @@
     return directions;
   }
 
+  function orderedSoulsEnemyDirections(enemy, snakeHead) {
+    const validDirections = SOULS_CHASE_DIRECTIONS.filter(
+      (direction) => SnakeLogic.DIRECTION_VECTORS[direction]
+    );
+    const preferredDirection =
+      typeof enemy?.direction === "string" && SnakeLogic.DIRECTION_VECTORS[enemy.direction]
+        ? enemy.direction
+        : null;
+
+    return validDirections
+      .map((direction, index) => {
+        const vector = SnakeLogic.DIRECTION_VECTORS[direction];
+        const nextDx = snakeHead.x - (enemy.x + vector.x);
+        const nextDy = snakeHead.y - (enemy.y + vector.y);
+        const chebyshevDistance = Math.max(Math.abs(nextDx), Math.abs(nextDy));
+        const manhattanDistance = Math.abs(nextDx) + Math.abs(nextDy);
+        const keepsDirection = preferredDirection === direction ? 0 : 1;
+
+        return {
+          direction,
+          chebyshevDistance,
+          manhattanDistance,
+          keepsDirection,
+          index,
+        };
+      })
+      .sort((left, right) => {
+        if (left.chebyshevDistance !== right.chebyshevDistance) {
+          return left.chebyshevDistance - right.chebyshevDistance;
+        }
+        if (left.manhattanDistance !== right.manhattanDistance) {
+          return left.manhattanDistance - right.manhattanDistance;
+        }
+        if (left.keepsDirection !== right.keepsDirection) {
+          return left.keepsDirection - right.keepsDirection;
+        }
+        return left.index - right.index;
+      })
+      .map((candidate) => candidate.direction);
+  }
+
   function moveEnemy(enemy, base, barriers, powerUp) {
     if (!enemy) {
       return null;
@@ -886,9 +937,26 @@
     return clamp(cps, 2, 18);
   }
 
+  function getSoulsEnemyReferenceBaseSpeedCps(floor, stageType) {
+    const cycle = SoulsData.getCycle(floor);
+    const baseByStage =
+      stageType === "normal" ? 6 : stageType === "boss" ? 7 : 8;
+    const cps = baseByStage * Math.pow(SoulsData.getDifficultyScale(cycle), 0.65);
+    return clamp(cps, 2, 18);
+  }
+
+  function getSoulsEnemyReferenceNormalSpeedCps(floor, stageType) {
+    const baseCps = getSoulsEnemyReferenceBaseSpeedCps(floor, stageType);
+    return clamp(baseCps * GLOBAL_SNAKE_SLOW_FACTOR, 2, 18);
+  }
+
   function getSoulsSnakeNormalSpeedCps(floor, stageType, souls) {
     const baseCps = getSoulsSnakeBaseSpeedCps(floor, stageType, souls);
     return clamp(baseCps * GLOBAL_SNAKE_SLOW_FACTOR, 2, 18);
+  }
+
+  function getSoulsMinionSpeedCps(floor, stageType) {
+    return clamp(getSoulsEnemyReferenceNormalSpeedCps(floor, stageType) * 0.75, 1.2, 12);
   }
 
   function getSoulsStaminaStats(souls) {
@@ -1455,25 +1523,157 @@
     };
   }
 
-  function getSoulsMinionCount(stageType, bossOrdinal, cycle) {
-    if (stageType === "normal") {
+  function getSoulsMinionBlockBase(withinCycle) {
+    const safeWithinCycle = Math.max(1, withinCycle);
+    const blockIndex = Math.floor((safeWithinCycle - 1) / 3);
+    if (blockIndex <= 0) {
       return 0;
     }
-
-    const base =
-      stageType === "final_boss"
-        ? 5
-        : bossOrdinal === 1
-          ? 2
-          : bossOrdinal === 2
-            ? 3
-            : 4;
-    const cycleBonus = Math.floor((Math.max(1, cycle) - 1) / 2);
-    return Math.min(8, base + cycleBonus);
+    return Math.min(6, blockIndex * 2);
   }
 
-  function spawnSoulsMinions(base, barriers, enemy, stageType, bossOrdinal, cycle, rng) {
-    const count = getSoulsMinionCount(stageType, bossOrdinal, cycle);
+  function getSoulsMinionCount(stageType, bossOrdinal, cycle, withinCycle = 1) {
+    const safeWithinCycle = Math.max(1, withinCycle);
+    const withinBlock = ((safeWithinCycle - 1) % 3) + 1;
+    const blockBase = getSoulsMinionBlockBase(safeWithinCycle);
+
+    if (withinBlock === 1) {
+      return blockBase;
+    }
+
+    if (withinBlock === 2) {
+      return Math.min(8, blockBase + 1);
+    }
+
+    return Math.min(8, blockBase + 3);
+  }
+
+  function shouldResetMinionsOnTransition(previousFloor, nextFloor) {
+    const previousWithinCycle = SoulsData.getWithinCycle(previousFloor);
+    const nextWithinCycle = SoulsData.getWithinCycle(nextFloor);
+    const endedBoss =
+      previousWithinCycle === 3 ||
+      previousWithinCycle === 6 ||
+      previousWithinCycle === 9 ||
+      previousWithinCycle === 12;
+    return endedBoss && previousWithinCycle !== nextWithinCycle;
+  }
+
+  function createSoulsMinionEntity(id, anchor, source = null) {
+    const direction =
+      source && SnakeLogic.DIRECTION_VECTORS[source.direction]
+        ? source.direction
+        : "LEFT";
+    return {
+      id,
+      x: anchor.x,
+      y: anchor.y,
+      direction,
+      tickCounter: 0,
+      moveEveryTicks: Math.max(1, Math.floor(source?.moveEveryTicks ?? 1)),
+      width: 1,
+      height: 1,
+      style: source?.style ?? "aggressive",
+      reentryCooldownMs: 0,
+    };
+  }
+
+  function createMinionIdFactory(minions) {
+    const usedIds = new Set();
+    let maxNumericId = 0;
+    if (Array.isArray(minions)) {
+      for (const minion of minions) {
+        if (!minion || typeof minion.id !== "string") {
+          continue;
+        }
+        usedIds.add(minion.id);
+        const numericMatch = /^minion-(\d+)$/.exec(minion.id);
+        if (numericMatch) {
+          maxNumericId = Math.max(maxNumericId, Number(numericMatch[1]));
+        }
+      }
+    }
+
+    return function getNextMinionId() {
+      let candidate = "";
+      do {
+        maxNumericId += 1;
+        candidate = `minion-${maxNumericId}`;
+      } while (usedIds.has(candidate));
+      usedIds.add(candidate);
+      return candidate;
+    };
+  }
+
+  function rebalanceSoulsMinions(base, barriers, enemy, previousMinions, desiredCount, rng) {
+    const targetCount = Math.max(0, Math.floor(desiredCount));
+    if (targetCount <= 0) {
+      return [];
+    }
+
+    const source = Array.isArray(previousMinions) ? previousMinions : [];
+    const getNextMinionId = createMinionIdFactory(source);
+    const assignedIds = new Set();
+    const nextMinions = [];
+
+    for (const minion of source) {
+      if (!minion || nextMinions.length >= targetCount) {
+        continue;
+      }
+      let minionId = typeof minion.id === "string" ? minion.id : getNextMinionId();
+      if (assignedIds.has(minionId)) {
+        minionId = getNextMinionId();
+      }
+      assignedIds.add(minionId);
+
+      const sourceX = Number(minion.x);
+      const sourceY = Number(minion.y);
+      let anchor = {
+        x: Number.isFinite(sourceX) ? Math.floor(sourceX) : base.snake[0].x,
+        y: Number.isFinite(sourceY) ? Math.floor(sourceY) : base.snake[0].y,
+      };
+      const blockedForKeep = buildStageBlockedSet(
+        base,
+        barriers,
+        enemy,
+        nextMinions,
+        [],
+        null,
+        null
+      );
+      if (blockedForKeep.has(keyForPosition(anchor))) {
+        anchor = pickSpawnAroundHead(base, blockedForKeep, rng, 10 + nextMinions.length * 2, {
+          width: 1,
+          height: 1,
+        });
+      }
+
+      nextMinions.push(createSoulsMinionEntity(minionId, anchor, minion));
+    }
+
+    while (nextMinions.length < targetCount) {
+      const blocked = buildStageBlockedSet(base, barriers, enemy, nextMinions, [], null, null);
+      const anchor = pickSpawnAroundHead(base, blocked, rng, 10 + nextMinions.length * 2, {
+        width: 1,
+        height: 1,
+      });
+      nextMinions.push(createSoulsMinionEntity(getNextMinionId(), anchor));
+    }
+
+    return nextMinions;
+  }
+
+  function spawnSoulsMinions(
+    base,
+    barriers,
+    enemy,
+    stageType,
+    bossOrdinal,
+    cycle,
+    withinCycle,
+    rng
+  ) {
+    const count = getSoulsMinionCount(stageType, bossOrdinal, cycle, withinCycle);
     if (count <= 0) {
       return [];
     }
@@ -1485,18 +1685,7 @@
         width: 1,
         height: 1,
       });
-      minions.push({
-        id: `minion-${i + 1}`,
-        x: anchor.x,
-        y: anchor.y,
-        direction: "LEFT",
-        tickCounter: 0,
-        moveEveryTicks: 1,
-        width: 1,
-        height: 1,
-        style: "aggressive",
-        reentryCooldownMs: 0,
-      });
+      minions.push(createSoulsMinionEntity(`minion-${i + 1}`, anchor));
     }
 
     return minions;
@@ -1691,6 +1880,7 @@
       stage.stageType,
       stage.bossOrdinal,
       stage.cycle,
+      stage.withinCycle,
       rng
     );
 
@@ -1733,15 +1923,13 @@
       stage.stageType,
       state.souls
     );
-    const enemyBaseSnakeSpeedCps = getSoulsSnakeBaseSpeedCps(
+    const enemyBaseSnakeSpeedCps = getSoulsEnemyReferenceBaseSpeedCps(
       floor,
-      stage.stageType,
-      state.souls
+      stage.stageType
     );
-    const enemyNormalSnakeSpeedCps = getSoulsSnakeNormalSpeedCps(
+    const enemyNormalSnakeSpeedCps = getSoulsEnemyReferenceNormalSpeedCps(
       floor,
-      stage.stageType,
-      state.souls
+      stage.stageType
     );
     const tickMs = Math.max(SoulsData.MIN_TICK_MS, Math.round(1000 / snakeSpeedCps));
 
@@ -2377,7 +2565,7 @@
 
     nextEnemy.tickCounter = 0;
     nextEnemy = tryActivateHunterBoost(nextEnemy, head);
-    const directions = orderedEnemyDirections(nextEnemy, head);
+    const directions = orderedSoulsEnemyDirections(nextEnemy, head);
 
     for (const direction of directions) {
       const vector = SnakeLogic.DIRECTION_VECTORS[direction];
@@ -2425,7 +2613,7 @@
       const moveEveryTicks = Math.max(1, minion.moveEveryTicks ?? 1);
       if (nextMinion.tickCounter >= moveEveryTicks) {
         nextMinion.tickCounter = 0;
-        const directions = orderedEnemyDirections(nextMinion, base.snake[0]);
+        const directions = orderedSoulsEnemyDirections(nextMinion, base.snake[0]);
         for (const direction of directions) {
           const vector = SnakeLogic.DIRECTION_VECTORS[direction];
           const candidate = {
@@ -2509,6 +2697,175 @@
     };
   }
 
+  function createSoulsStageMessageFlow(message) {
+    if (typeof message !== "string" || message.trim().length === 0) {
+      return createStageFlowState("idle");
+    }
+    return createStageFlowState("message", {
+      message: message.trim(),
+      msRemaining: SOULS_STAGE_MESSAGE_MS,
+    });
+  }
+
+  function transitionSoulsFloorInPlace(state, currentBase, souls, floor, rng, options = {}) {
+    const stage = getStageDescriptor(floor);
+    const snakeDefinition = getSnakeDefinition(souls);
+    const viewportAspect = normalizeSoulsViewportAspect(
+      options.viewportAspect ?? souls.viewportAspect ?? state.souls.viewportAspect ?? 1
+    );
+    const viewport = getSoulsViewportDimensions(stage.stageType, viewportAspect);
+    const keepCurrentObstacles = options.keepCurrentObstacles !== false;
+    const resetMinions =
+      options.resetMinions === true || shouldResetMinionsOnTransition(souls.floor, floor);
+    const sourceMinions = resetMinions ? [] : souls.minions;
+
+    const nextBase = {
+      ...currentBase,
+      width: viewport.width,
+      height: viewport.height,
+      food: null,
+      isGameOver: false,
+      isPaused: false,
+    };
+    const nextSouls = {
+      ...souls,
+      floor,
+      cycle: stage.cycle,
+      withinCycle: stage.withinCycle,
+      stageType: stage.stageType,
+      bossOrdinal: stage.bossOrdinal,
+      bossName: stage.bossDefinition?.name ?? null,
+      objectiveType: stage.stageType === "normal" ? "food" : "sigil",
+      objectiveProgress: 0,
+      objectiveTarget: SoulsData.getObjectiveTarget(floor, stage.stageType, snakeDefinition),
+      sigil: null,
+      sigilRespawnMsRemaining: 0,
+      hazards: [],
+      enemyTeleportPreview: null,
+      echo: null,
+      reward: null,
+      rewardRerolled: false,
+      world: souls.world ?? createSoulsWorldSession(stage),
+      viewportAspect,
+      stageFlow: createSoulsStageMessageFlow(options.message ?? ""),
+      snakeMoveAccumulatorMs: 0,
+      enemyMoveAccumulatorMs: 0,
+      armorCharges: getSoulsArmorPerStage(souls),
+      stamina: createSoulsStaminaState(souls, { current: "max" }),
+      countdownMsRemaining: 0,
+    };
+    const camera = buildSoulsCamera(nextBase.snake[0], stage.stageType, viewportAspect);
+    nextSouls.camera = camera;
+    if (nextSouls.world && SoulsWorld) {
+      nextSouls.world.stageType = stage.stageType;
+      nextSouls.world.cycle = stage.cycle;
+      SoulsWorld.updateActiveChunks(nextSouls.world, {
+        x: camera.centerX,
+        y: camera.centerY,
+      });
+    }
+
+    let barriers =
+      keepCurrentObstacles && Array.isArray(state.barriers)
+        ? clonePositions(state.barriers)
+        : [];
+    if (barriers.length === 0) {
+      const cameraResult = updateSoulsCameraAndWorld(
+        nextBase,
+        nextSouls,
+        stage.stageType,
+        viewportAspect
+      );
+      nextSouls.camera = cameraResult.camera;
+      barriers = cameraResult.barriers ?? [];
+    }
+
+    const minionTarget = getSoulsMinionCount(
+      stage.stageType,
+      stage.bossOrdinal,
+      stage.cycle,
+      stage.withinCycle
+    );
+    let minions = rebalanceSoulsMinions(
+      nextBase,
+      barriers,
+      null,
+      sourceMinions,
+      minionTarget,
+      rng
+    );
+    const enemy = spawnSoulsEnemy(
+      nextBase,
+      barriers,
+      minions,
+      floor,
+      stage.stageType,
+      stage.bossDefinition,
+      rng
+    );
+    minions = rebalanceSoulsMinions(
+      nextBase,
+      barriers,
+      enemy,
+      minions,
+      minionTarget,
+      rng
+    );
+
+    if (nextSouls.objectiveType === "food") {
+      nextBase.food = spawnSoulsFood(
+        nextBase,
+        nextSouls,
+        barriers,
+        enemy,
+        minions,
+        nextSouls.hazards,
+        null,
+        nextSouls.echo,
+        rng
+      );
+      if (!nextBase.food) {
+        return createSoulsGameOver(state, nextBase, nextSouls);
+      }
+    } else {
+      nextSouls.sigil = spawnSoulsSigil(
+        nextBase,
+        nextSouls,
+        barriers,
+        enemy,
+        minions,
+        nextSouls.hazards,
+        nextSouls.echo,
+        rng
+      );
+      if (!nextSouls.sigil) {
+        return createSoulsGameOver(state, nextBase, nextSouls);
+      }
+    }
+
+    nextSouls.minions = minions;
+    nextSouls.snakeSpeedCps = getSoulsSnakeSpeedCps(floor, stage.stageType, nextSouls);
+    nextSouls.enemySpeedCps = enemy
+      ? getSoulsEnemySpeedCps(enemy, {
+        snakeBaseCps: getSoulsEnemyReferenceBaseSpeedCps(floor, stage.stageType),
+        snakeNormalCps: getSoulsEnemyReferenceNormalSpeedCps(floor, stage.stageType),
+      })
+      : 0;
+    nextSouls.sigilIndicator = buildSoulsSigilIndicator(nextBase, nextSouls);
+
+    return {
+      ...state,
+      base: nextBase,
+      tickMs: Math.max(SoulsData.MIN_TICK_MS, Math.round(1000 / nextSouls.snakeSpeedCps)),
+      barriers: clonePositions(barriers),
+      enemy,
+      powerUp: null,
+      isGameOver: false,
+      isPaused: false,
+      souls: nextSouls,
+    };
+  }
+
   function handleSoulsStageCompletion(state, nextBase, souls, rng) {
     const nextFloor = souls.floor + 1;
     const completionLabel =
@@ -2517,26 +2874,9 @@
         : `Boss ${souls.bossName ?? ""} derrotado`.trim();
 
     if (souls.stageType === "normal") {
-      return {
-        ...state,
-        base: {
-          ...nextBase,
-          isGameOver: false,
-          isPaused: false,
-        },
-        isGameOver: false,
-        isPaused: false,
-        souls: {
-          ...souls,
-          reward: null,
-          stageFlow: createStageFlowState("message", {
-            message: completionLabel,
-            msRemaining: SOULS_STAGE_MESSAGE_MS,
-            nextFloor,
-          }),
-          countdownMsRemaining: 0,
-        },
-      };
+      return transitionSoulsFloorInPlace(state, nextBase, souls, nextFloor, rng, {
+        message: completionLabel,
+      });
     }
 
     const defeatedBossId =
@@ -2564,26 +2904,9 @@
 
     if (options.length === 0) {
       applyRuneGain(souls, SoulsData.getRuneReward("allPowersMaxed"));
-      return {
-        ...state,
-        base: {
-          ...nextBase,
-          isGameOver: false,
-          isPaused: false,
-        },
-        isGameOver: false,
-        isPaused: false,
-        souls: {
-          ...souls,
-          reward: null,
-          stageFlow: createStageFlowState("message", {
-            message: completionLabel,
-            msRemaining: SOULS_STAGE_MESSAGE_MS,
-            nextFloor,
-          }),
-          countdownMsRemaining: 0,
-        },
-      };
+      return transitionSoulsFloorInPlace(state, nextBase, souls, nextFloor, rng, {
+        message: completionLabel,
+      });
     }
 
     return {
@@ -2750,7 +3073,7 @@
     base.width = viewportCamera.width;
     base.height = viewportCamera.height;
     souls.camera = viewportCamera;
-    if (state.isPaused && souls.stageFlow.phase === "idle") {
+    if (state.isPaused) {
       return {
         ...state,
         base,
@@ -2765,62 +3088,22 @@
     const deltaMs = Math.max(0, options.deltaMs ?? defaultDeltaMs);
     const holdCurrentDirection = options.holdCurrentDirection === true;
 
+    souls.countdownMsRemaining = 0;
     if (souls.stageFlow.phase === "message") {
       souls.stageFlow.msRemaining = Math.max(0, souls.stageFlow.msRemaining - deltaMs);
-      souls.countdownMsRemaining = 0;
-      if (souls.stageFlow.msRemaining > 0) {
-        return {
-          ...state,
-          base,
-          souls,
-        };
+      if (souls.stageFlow.msRemaining <= 0) {
+        souls.stageFlow = createStageFlowState("idle");
       }
-
-      souls.stageFlow = createStageFlowState("countdown", {
-        nextFloor: souls.stageFlow.nextFloor ?? souls.floor + 1,
-        message: souls.stageFlow.message,
-        msRemaining: SOULS_COUNTDOWN_MS,
-      });
-      souls.countdownMsRemaining = SOULS_COUNTDOWN_MS;
-      return {
-        ...state,
-        base,
-        souls,
-      };
-    }
-
-    if (souls.stageFlow.phase === "countdown") {
+    } else if (souls.stageFlow.phase === "countdown") {
       souls.stageFlow.msRemaining = Math.max(0, souls.stageFlow.msRemaining - deltaMs);
       souls.countdownMsRemaining = souls.stageFlow.msRemaining;
-      if (souls.stageFlow.msRemaining > 0) {
-        return {
-          ...state,
-          base,
-          souls,
-        };
+      if (souls.stageFlow.msRemaining <= 0) {
+        souls.countdownMsRemaining = 0;
+        souls.stageFlow = createStageFlowState("idle");
       }
-
-      souls.countdownMsRemaining = 0;
-      return startNextSoulsFloor(
-        state,
-        {
-          ...base,
-          isGameOver: false,
-          isPaused: false,
-        },
-        {
-          ...souls,
-          stageFlow: createStageFlowState("idle"),
-        },
-        souls.stageFlow.nextFloor ?? souls.floor + 1,
-        rng,
-        {
-          includeCountdown: false,
-          viewportAspect: souls.viewportAspect,
-        }
-      );
+    } else if (souls.stageFlow.phase === "reward" && !souls.reward) {
+      souls.stageFlow = createStageFlowState("idle");
     }
-    souls.countdownMsRemaining = 0;
 
     const staminaRuntime = updateSoulsStaminaState(
       souls,
@@ -2842,15 +3125,13 @@
     );
     souls.enemySpeedCps = runtimeEnemy
       ? getSoulsEnemySpeedCps(runtimeEnemy, {
-        snakeBaseCps: getSoulsSnakeBaseSpeedCps(
+        snakeBaseCps: getSoulsEnemyReferenceBaseSpeedCps(
           souls.floor,
-          souls.stageType,
-          souls
+          souls.stageType
         ),
-        snakeNormalCps: getSoulsSnakeNormalSpeedCps(
+        snakeNormalCps: getSoulsEnemyReferenceNormalSpeedCps(
           souls.floor,
-          souls.stageType,
-          souls
+          souls.stageType
         ),
       })
       : 0;
@@ -2878,8 +3159,15 @@
     const effectiveSnakeSpeedCps = souls.snakeSpeedCps;
     const snakeIntervalMs = 1000 / Math.max(0.1, effectiveSnakeSpeedCps);
     const enemyIntervalMs = getSoulsEnemyIntervalMs(souls);
+    const minionIntervalMs =
+      Array.isArray(souls.minions) && souls.minions.length > 0
+        ? 1000 / Math.max(0.1, getSoulsMinionSpeedCps(souls.floor, souls.stageType))
+        : Infinity;
+    const pursuitIntervalMs = Number.isFinite(enemyIntervalMs)
+      ? enemyIntervalMs
+      : minionIntervalMs;
     const shouldMoveSnake = souls.snakeMoveAccumulatorMs >= snakeIntervalMs;
-    const shouldMoveEnemy = souls.enemyMoveAccumulatorMs >= enemyIntervalMs;
+    const shouldMoveEnemy = souls.enemyMoveAccumulatorMs >= pursuitIntervalMs;
     const readyTeleportPreview =
       souls.enemyTeleportPreview &&
         souls.enemyTeleportPreview.msRemaining <= 0
@@ -2901,7 +3189,7 @@
       souls.snakeMoveAccumulatorMs -= snakeIntervalMs;
     }
     if (shouldMoveEnemy) {
-      souls.enemyMoveAccumulatorMs -= enemyIntervalMs;
+      souls.enemyMoveAccumulatorMs -= pursuitIntervalMs;
     }
 
     if (!shouldMoveSnake && !shouldMoveEnemy && !readyTeleportPreview) {
@@ -3163,43 +3451,52 @@
       return state;
     }
 
+    const nextFloor = state.souls.stageFlow?.nextFloor ?? state.souls.floor + 1;
+    const completionLabel =
+      state.souls.stageFlow?.message ??
+      `Boss ${state.souls.bossName ?? ""} derrotado`.trim();
+    const upgradedPowers = {
+      ...state.souls.powers,
+      [powerId]: currentStacks + 1,
+    };
     const nextSouls = {
       ...state.souls,
-      powers: {
-        ...state.souls.powers,
-        [powerId]: currentStacks + 1,
-      },
+      powers: upgradedPowers,
       reward: null,
       rewardRerolled: false,
       stamina: createSoulsStaminaState(
         {
           ...state.souls,
-          powers: {
-            ...state.souls.powers,
-            [powerId]: currentStacks + 1,
-          },
+          powers: upgradedPowers,
         },
         { current: "max" }
       ),
-      stageFlow: createStageFlowState("message", {
-        message:
-          state.souls.stageFlow?.message ??
-          `Andar ${state.souls.floor} concluido`,
-        msRemaining: SOULS_STAGE_MESSAGE_MS,
-        nextFloor: state.souls.stageFlow?.nextFloor ?? state.souls.floor + 1,
-      }),
+      stageFlow: createStageFlowState("idle"),
       countdownMsRemaining: 0,
     };
+    const rng = options.rng ?? Math.random;
 
-    return {
-      ...state,
-      isPaused: false,
-      base: {
+    return transitionSoulsFloorInPlace(
+      {
+        ...state,
+        isPaused: false,
+        base: {
+          ...state.base,
+          isPaused: false,
+        },
+        souls: nextSouls,
+      },
+      {
         ...state.base,
         isPaused: false,
       },
-      souls: nextSouls,
-    };
+      nextSouls,
+      nextFloor,
+      rng,
+      {
+        message: completionLabel,
+      }
+    );
   }
 
   function rerollSoulsReward(state, options = {}) {
