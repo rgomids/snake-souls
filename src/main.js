@@ -4,6 +4,7 @@ const { directionFromInputKey } = window.SnakeLogic;
 const SoulsData = window.SoulsData;
 const SoulsProfile = window.SoulsProfile;
 const DevCodes = window.DevCodes;
+const EasterEggs = window.EasterEggs || {};
 const { calculateFixedSteps } = window.SoulsLoop;
 const {
   buildRewardRenderKey = () => null,
@@ -23,9 +24,8 @@ const {
 
 const GRID_WIDTH = 20;
 const GRID_HEIGHT = 20;
-const THEME_KEY = "snake-theme";
 const SETTINGS_KEY = "snake-settings-v1";
-const GAME_VERSION = "v0.12.0";
+const GAME_VERSION = "v0.14.3";
 
 const SCREEN_MENU = "menu";
 const SCREEN_PLAYING = "playing";
@@ -46,6 +46,7 @@ const startButton = document.getElementById("start-btn");
 const menuButton = document.getElementById("menu-btn");
 const settingsMenuElement = document.getElementById("settings-menu");
 const gameVersionElement = document.getElementById("game-version");
+const menuEasterEggStatusElement = document.getElementById("menu-easter-egg-status");
 
 const soulsMenuElement = document.getElementById("souls-menu");
 const soulsSnakesElement = document.getElementById("souls-snakes");
@@ -73,11 +74,7 @@ const soulsArmorElement = document.getElementById("souls-armor");
 
 const pauseButton = document.getElementById("pause-btn");
 const restartButton = document.getElementById("restart-btn");
-const themeToggle = document.getElementById("theme-toggle");
 const touchButtons = Array.from(document.querySelectorAll("[data-direction]"));
-const themeChoiceInputs = Array.from(
-  document.querySelectorAll('input[name="theme-choice"]')
-);
 const mobileControlChoiceInputs = Array.from(
   document.querySelectorAll('input[name="mobile-control-choice"]')
 );
@@ -117,6 +114,9 @@ const gameOverMenuButton = document.getElementById("gameover-menu-btn");
 
 const initialSoulsProfile = loadSoulsProfileFromStorage();
 const initialUiSettings = loadUiSettings();
+const konamiTracker = EasterEggs?.createKonamiTracker
+  ? EasterEggs.createKonamiTracker()
+  : null;
 
 const appState = {
   screen: SCREEN_MENU,
@@ -134,13 +134,16 @@ const appState = {
   currentTickMs: null,
   soulsProfile: initialSoulsProfile,
   selectedSoulsSnakeId: initialSoulsProfile.selectedSnakeId,
-  selectedMenuMode: "traditional",
+  selectedMenuMode: "souls",
+  legacyModesUnlocked: false,
   uiSettings: initialUiSettings,
   isSettingsOpen: false,
   mobileInstructionsExpanded: false,
   runStartedAtMs: 0,
   runEndedAtMs: null,
   gestureSession: null,
+  soulsInterpolationFromState: null,
+  soulsInterpolationAlpha: 0,
 };
 
 const initiallySelectedMenuButton = menuModeButtons.find((button) =>
@@ -156,6 +159,7 @@ let gridWidth = 0;
 let gridHeight = 0;
 let canvasCtx = null;
 let colorCache = null;
+let gridLayerCache = null;
 
 function getColor(name) {
   if (!colorCache) {
@@ -255,70 +259,66 @@ function syncSoulsProfileFromModeState() {
   setSoulsProfile(profile);
 }
 
-function getSavedTheme() {
-  try {
-    return window.localStorage.getItem(THEME_KEY);
-  } catch {
-    return null;
+function applyTheme() {
+  document.documentElement.setAttribute("data-theme", "dark");
+  colorCache = null;
+  gridLayerCache = null;
+}
+
+function isLegacyMode(mode) {
+  return mode === "traditional" || mode === "levels";
+}
+
+function isMenuModeAvailable(mode) {
+  if (mode === "souls") {
+    return true;
+  }
+  return appState.legacyModesUnlocked && isLegacyMode(mode);
+}
+
+function normalizeMenuMode(mode) {
+  if (mode === "traditional" || mode === "levels" || mode === "souls") {
+    return mode;
+  }
+  return "souls";
+}
+
+function getSelectedMenuMode() {
+  const normalized = normalizeMenuMode(appState.selectedMenuMode);
+  return isMenuModeAvailable(normalized) ? normalized : "souls";
+}
+
+function setSelectedMenuMode(mode) {
+  const normalized = normalizeMenuMode(mode);
+  appState.selectedMenuMode = isMenuModeAvailable(normalized) ? normalized : "souls";
+}
+
+function resetLegacyMenuSession(options = {}) {
+  appState.legacyModesUnlocked = false;
+  if (konamiTracker) {
+    konamiTracker.reset();
+  }
+  if (options.forceSoulsSelection === true || isLegacyMode(appState.selectedMenuMode)) {
+    appState.selectedMenuMode = "souls";
   }
 }
 
-function saveTheme(theme) {
-  try {
-    window.localStorage.setItem(THEME_KEY, theme);
-  } catch {
-    // Ignore storage errors
+function consumeMenuKonamiKey(key) {
+  if (!konamiTracker || appState.screen !== SCREEN_MENU) {
+    return false;
   }
-}
-
-function applyTheme(theme) {
-  document.documentElement.setAttribute("data-theme", theme);
-  colorCache = null; // Invalidate cache
-  if (themeToggle) {
-    themeToggle.checked = theme === "dark";
+  const unlocked = konamiTracker.consumeKey(key);
+  if (!unlocked) {
+    return false;
   }
-}
-
-function getInitialTheme() {
-  const savedTheme = getSavedTheme();
-  if (savedTheme === "dark" || savedTheme === "light") {
-    return savedTheme;
-  }
-
-  if (
-    window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  ) {
-    return "dark";
-  }
-
-  return "light";
-}
-
-function getCurrentTheme() {
-  const theme = document.documentElement.getAttribute("data-theme");
-  return theme === "dark" ? "dark" : "light";
+  appState.legacyModesUnlocked = true;
+  return true;
 }
 
 function formatModeLabel(mode) {
   if (mode === "levels") return "Níveis";
   if (mode === "souls") return "Souls";
   return "Clássico";
-}
-
-function normalizeMenuMode(mode) {
-  if (mode === "levels" || mode === "souls") {
-    return mode;
-  }
-  return "traditional";
-}
-
-function getSelectedMenuMode() {
-  return normalizeMenuMode(appState.selectedMenuMode);
-}
-
-function setSelectedMenuMode(mode) {
-  appState.selectedMenuMode = normalizeMenuMode(mode);
 }
 
 function formatSoulsStage(souls) {
@@ -396,7 +396,28 @@ function getViewportAspectRatio() {
   return width / height;
 }
 
-function getSoulsViewportOrigin(modeState) {
+function lerp(from, to, alpha) {
+  return from + (to - from) * alpha;
+}
+
+function interpolatePosition(previous, current, alpha, maxDelta = 10) {
+  if (!previous || !current || alpha <= 0) {
+    return current;
+  }
+
+  const dx = Math.abs(current.x - previous.x);
+  const dy = Math.abs(current.y - previous.y);
+  if (dx > maxDelta || dy > maxDelta) {
+    return current;
+  }
+
+  return {
+    x: lerp(previous.x, current.x, alpha),
+    y: lerp(previous.y, current.y, alpha),
+  };
+}
+
+function getSoulsViewportOrigin(modeState, interpolation = null) {
   if (!modeState || modeState.mode !== "souls") {
     return { originX: 0, originY: 0 };
   }
@@ -405,9 +426,31 @@ function getSoulsViewportOrigin(modeState) {
     centerX: modeState.base.snake[0]?.x ?? 0,
     centerY: modeState.base.snake[0]?.y ?? 0,
   };
-  const originX = camera.centerX - Math.floor(modeState.base.width / 2);
-  const originY = camera.centerY - Math.floor(modeState.base.height / 2);
-  return { originX, originY };
+  if (
+    interpolation &&
+    interpolation.fromState &&
+    interpolation.fromState.mode === "souls" &&
+    interpolation.alpha > 0
+  ) {
+    const previousCamera = interpolation.fromState.souls.camera;
+    if (previousCamera) {
+      const interpolated = interpolatePosition(
+        { x: previousCamera.centerX, y: previousCamera.centerY },
+        { x: camera.centerX, y: camera.centerY },
+        interpolation.alpha,
+        Math.max(modeState.base.width, modeState.base.height)
+      );
+      return {
+        originX: interpolated.x - modeState.base.width / 2,
+        originY: interpolated.y - modeState.base.height / 2,
+      };
+    }
+  }
+
+  return {
+    originX: camera.centerX - Math.floor(modeState.base.width / 2),
+    originY: camera.centerY - Math.floor(modeState.base.height / 2),
+  };
 }
 
 function toRenderPosition(modeState, position, origin) {
@@ -431,14 +474,64 @@ function ensureGrid(width, height) {
   gridHeight = height;
   gridElement.style.setProperty("--grid-width", String(width));
   gridElement.style.setProperty("--grid-height", String(height));
-
   gridElement.width = width;
   gridElement.height = height;
   canvasCtx = gridElement.getContext("2d");
+  if (canvasCtx) {
+    canvasCtx.imageSmoothingEnabled = false;
+  }
+  gridLayerCache = null;
 }
 
-function indexForPosition(position) {
-  return position.y * gridWidth + position.x;
+function ensureGridStaticLayer() {
+  if (!canvasCtx || gridWidth <= 0 || gridHeight <= 0) {
+    return null;
+  }
+
+  const background = getColor("--cell-bg");
+  const border = getColor("--cell-border");
+  if (
+    gridLayerCache &&
+    gridLayerCache.width === gridWidth &&
+    gridLayerCache.height === gridHeight &&
+    gridLayerCache.background === background &&
+    gridLayerCache.border === border
+  ) {
+    return gridLayerCache.canvas;
+  }
+
+  const layerCanvas = document.createElement("canvas");
+  layerCanvas.width = gridWidth;
+  layerCanvas.height = gridHeight;
+  const layerCtx = layerCanvas.getContext("2d");
+  if (layerCtx) {
+    layerCtx.imageSmoothingEnabled = false;
+  }
+  layerCtx.fillStyle = background;
+  layerCtx.fillRect(0, 0, gridWidth, gridHeight);
+  layerCtx.strokeStyle = border;
+  layerCtx.lineWidth = 0.05;
+  for (let x = 1; x < gridWidth; x += 1) {
+    layerCtx.beginPath();
+    layerCtx.moveTo(x, 0);
+    layerCtx.lineTo(x, gridHeight);
+    layerCtx.stroke();
+  }
+  for (let y = 1; y < gridHeight; y += 1) {
+    layerCtx.beginPath();
+    layerCtx.moveTo(0, y);
+    layerCtx.lineTo(gridWidth, y);
+    layerCtx.stroke();
+  }
+
+  gridLayerCache = {
+    width: gridWidth,
+    height: gridHeight,
+    background,
+    border,
+    canvas: layerCanvas,
+  };
+  return layerCanvas;
 }
 
 function isInsideGrid(position) {
@@ -451,49 +544,65 @@ function isInsideGrid(position) {
   );
 }
 
-function renderBoard(modeState) {
+function snapToGridCell(position) {
+  if (!position) return null;
+  return {
+    x: Math.round(position.x),
+    y: Math.round(position.y),
+  };
+}
+
+function renderBoard(modeState, options = {}) {
   if (!modeState || !canvasCtx) {
     return;
   }
 
-  const soulsOrigin = getSoulsViewportOrigin(modeState);
+  const hasSoulsInterpolation =
+    modeState.mode === "souls" &&
+    options.interpolation &&
+    options.interpolation.fromState &&
+    options.interpolation.fromState.mode === "souls";
+  const interpolation = hasSoulsInterpolation
+    ? {
+      fromState: options.interpolation.fromState,
+      alpha: Math.max(0, Math.min(1, options.interpolation.alpha ?? 0)),
+    }
+    : null;
 
-  // Clear background
-  canvasCtx.fillStyle = getColor("--cell-bg");
-  canvasCtx.fillRect(0, 0, gridWidth, gridHeight);
+  const previousState = interpolation?.fromState ?? null;
+  const previousMinionById = new Map(
+    (previousState?.souls?.minions ?? [])
+      .filter((minion) => minion && minion.id)
+      .map((minion) => [minion.id, minion])
+  );
+  const soulsOrigin = getSoulsViewportOrigin(modeState, interpolation);
+  const staticLayer = ensureGridStaticLayer();
 
-  // Draw grid lines (optional, but original had them)
-  // Original had border-right/bottom on cells. Canvas can draw them too if worth it.
-  // For performance, maybe skip, but for visual fidelity, let's add them.
-  canvasCtx.strokeStyle = getColor("--cell-border");
-  canvasCtx.lineWidth = 0.05; // Thin lines in coordinate space
-  for (let x = 1; x < gridWidth; x++) {
-    canvasCtx.beginPath();
-    canvasCtx.moveTo(x, 0);
-    canvasCtx.lineTo(x, gridHeight);
-    canvasCtx.stroke();
+  if (staticLayer) {
+    canvasCtx.drawImage(staticLayer, 0, 0);
+  } else {
+    canvasCtx.fillStyle = getColor("--cell-bg");
+    canvasCtx.fillRect(0, 0, gridWidth, gridHeight);
   }
-  for (let y = 1; y < gridHeight; y++) {
-    canvasCtx.beginPath();
-    canvasCtx.moveTo(0, y);
-    canvasCtx.lineTo(gridWidth, y);
-    canvasCtx.stroke();
-  }
 
-  const paint = (worldPosition, colorKey, opacity = 1, extra = null) => {
-    const renderPosition = toRenderPosition(modeState, worldPosition, soulsOrigin);
-    if (!renderPosition) return;
-    if (!isInsideGrid(renderPosition)) return;
+  const paint = (worldPosition, colorKey, opacity = 1, overrideColor = null) => {
+    const renderPosition = snapToGridCell(
+      toRenderPosition(modeState, worldPosition, soulsOrigin)
+    );
+    if (!renderPosition || !isInsideGrid(renderPosition)) {
+      return;
+    }
 
     canvasCtx.globalAlpha = opacity;
-    canvasCtx.fillStyle = getColor(colorKey);
-
-    // Some specials have hardcoded colors in old CSS
-    if (extra === "minion") canvasCtx.fillStyle = "#4f7fc2";
-
+    canvasCtx.fillStyle = overrideColor ?? getColor(colorKey);
     canvasCtx.fillRect(renderPosition.x, renderPosition.y, 1, 1);
     canvasCtx.globalAlpha = 1;
   };
+
+  const interpolateWorldPosition = (currentPosition, previousPosition, maxDelta = 10) =>
+    interpolation
+      ? interpolatePosition(previousPosition, currentPosition, interpolation.alpha, maxDelta)
+      : currentPosition;
 
   for (const barrier of modeState.barriers) {
     paint(barrier, "--barrier");
@@ -535,50 +644,44 @@ function renderBoard(modeState) {
   if (modeState.enemy) {
     const enemyWidth = modeState.enemy.width ?? modeState.enemy.size ?? 1;
     const enemyHeight = modeState.enemy.height ?? modeState.enemy.size ?? 1;
+    const previousEnemy = previousState?.enemy ?? null;
+    const enemyAnchor = interpolateWorldPosition(modeState.enemy, previousEnemy, 24);
     for (let dy = 0; dy < enemyHeight; dy += 1) {
       for (let dx = 0; dx < enemyWidth; dx += 1) {
-        paint({ x: modeState.enemy.x + dx, y: modeState.enemy.y + dy }, "--enemy");
+        paint({ x: enemyAnchor.x + dx, y: enemyAnchor.y + dy }, "--enemy");
       }
     }
   }
 
   if (modeState.mode === "souls" && Array.isArray(modeState.souls.minions)) {
     for (const minion of modeState.souls.minions) {
-      paint(minion, "--enemy", 1, "minion");
+      const previousMinion = previousMinionById.get(minion.id) ?? null;
+      const minionAnchor = interpolateWorldPosition(minion, previousMinion, 20);
+      paint(minionAnchor, "--minion");
     }
   }
 
   const snakeLength = modeState.base.snake.length;
   const variantId = modeState.mode === "souls" ? modeState.souls.selectedSnakeId : null;
-
-  // Map variant to color variables if they exist, else default
+  const variantColors = {
+    basica: ["#ff4332", "#f2684f"],
+    veloz: ["#4ebdff", "#2f90ff"],
+    tanque: ["#ffab72", "#df8150"],
+    vidente: ["#bb8cff", "#8f5eff"],
+  };
   const getSnakeColor = (isHead) => {
-    if (!variantId) return isHead ? "--snake-head" : "--snake";
-    // Check if variant specific colors exist in CSS
-    // Based on old CSS: .cell.snake.variant-veloz { background: #2b77d8; }
-    // I should probably have tokens for these, but for now I'll use hardcoded 
-    // or look them up if I had added them to :root.
-    // Let's assume default for now or add them to :root later if needed.
-    // Actually, I can use the same logic as old CSS if I had converted them to variables.
-
-    // For now, let's support the known variants:
-    const variants = {
-      basica: ["#176338", "#1f7a46"],
-      veloz: ["#1f5aa1", "#2b77d8"],
-      tanque: ["#8f3a30", "#b34b3f"],
-      vidente: ["#5d3597", "#7446b8"]
-    };
-
-    if (variants[variantId]) {
-      return variants[variantId][isHead ? 0 : 1];
+    if (!variantId || !variantColors[variantId]) {
+      return isHead ? getColor("--snake-head") : getColor("--snake");
     }
-
-    return isHead ? getColor("--snake-head") : getColor("--snake");
+    return variantColors[variantId][isHead ? 0 : 1];
   };
 
   for (let i = 0; i < modeState.base.snake.length; i += 1) {
-    const worldPos = modeState.base.snake[i];
-    const renderPosition = toRenderPosition(modeState, worldPos, soulsOrigin);
+    const previousSegment = previousState?.base?.snake?.[i] ?? null;
+    const worldPos = interpolateWorldPosition(modeState.base.snake[i], previousSegment, 16);
+    const renderPosition = snapToGridCell(
+      toRenderPosition(modeState, worldPos, soulsOrigin)
+    );
     if (!renderPosition || !isInsideGrid(renderPosition)) continue;
 
     let opacity = 1;
@@ -588,12 +691,7 @@ function renderBoard(modeState) {
     }
 
     canvasCtx.globalAlpha = opacity;
-    const color = getSnakeColor(i === 0);
-    if (color.startsWith("#")) {
-      canvasCtx.fillStyle = color;
-    } else {
-      canvasCtx.fillStyle = getColor(color);
-    }
+    canvasCtx.fillStyle = getSnakeColor(i === 0);
     canvasCtx.fillRect(renderPosition.x, renderPosition.y, 1, 1);
     canvasCtx.globalAlpha = 1;
   }
@@ -1189,6 +1287,13 @@ function renderFloatingPause(modeState) {
   floatingPauseButton.textContent = modeState.isPaused ? "Retomar" : "Pausar";
 }
 
+function resetSoulsRenderTiming() {
+  appState.soulsLastTs = null;
+  appState.soulsAccumulatorMs = 0;
+  appState.soulsInterpolationFromState = null;
+  appState.soulsInterpolationAlpha = 0;
+}
+
 function stopTicker() {
   if (appState.tickerId !== null) {
     window.clearInterval(appState.tickerId);
@@ -1200,8 +1305,7 @@ function stopTicker() {
     window.cancelAnimationFrame(appState.soulsRafId);
     appState.soulsRafId = null;
   }
-  appState.soulsLastTs = null;
-  appState.soulsAccumulatorMs = 0;
+  resetSoulsRenderTiming();
   appState.soulsPendingDirection = null;
   appState.pressedDirections.clear();
 }
@@ -1215,7 +1319,7 @@ function shouldRunSoulsRaf(modeState) {
     return false;
   }
 
-  if (modeState.isPaused && modeState.souls.stageFlow?.phase === "idle") {
+  if (modeState.isPaused) {
     return false;
   }
 
@@ -1226,8 +1330,7 @@ function startTicker(tickMs) {
   if (appState.soulsRafId !== null) {
     window.cancelAnimationFrame(appState.soulsRafId);
     appState.soulsRafId = null;
-    appState.soulsLastTs = null;
-    appState.soulsAccumulatorMs = 0;
+    resetSoulsRenderTiming();
     appState.soulsPendingDirection = null;
   }
   if (appState.tickerId !== null) {
@@ -1253,6 +1356,7 @@ function shouldBlockSoulsStep() {
 function runSoulsFrame(timestamp) {
   if (!appState.modeState || appState.modeState.mode !== "souls") {
     appState.soulsRafId = null;
+    resetSoulsRenderTiming();
     return;
   }
 
@@ -1273,16 +1377,20 @@ function runSoulsFrame(timestamp) {
     dropOverflow: true,
   });
   appState.soulsAccumulatorMs = schedule.accumulatorAfterMs;
+  appState.soulsInterpolationAlpha = Math.max(
+    0,
+    Math.min(1, appState.soulsAccumulatorMs / SOULS_FIXED_STEP_MS)
+  );
 
   if (!shouldBlockSoulsStep()) {
     for (let i = 0; i < schedule.steps; i += 1) {
-      // Input queue is already populated in the mode state, stepModeState will process it.
-
+      const previousState = appState.modeState;
       appState.modeState = stepModeState(appState.modeState, {
         deltaMs: SOULS_FIXED_STEP_MS,
         holdCurrentDirection: isHoldingCurrentDirection(),
         viewportAspect: getViewportAspectRatio(),
       });
+      appState.soulsInterpolationFromState = previousState;
       syncSoulsProfileFromModeState();
 
       if (appState.modeState.isGameOver) {
@@ -1314,8 +1422,7 @@ function startSoulsTicker() {
     return;
   }
 
-  appState.soulsLastTs = null;
-  appState.soulsAccumulatorMs = 0;
+  resetSoulsRenderTiming();
   appState.soulsRafId = window.requestAnimationFrame(runSoulsFrame);
 }
 
@@ -1331,8 +1438,7 @@ function ensureTickerState() {
     } else if (appState.soulsRafId !== null) {
       window.cancelAnimationFrame(appState.soulsRafId);
       appState.soulsRafId = null;
-      appState.soulsLastTs = null;
-      appState.soulsAccumulatorMs = 0;
+      resetSoulsRenderTiming();
     }
     return;
   }
@@ -1435,9 +1541,19 @@ function renderMenuModeOptions() {
 
   for (const button of menuModeButtons) {
     const mode = normalizeMenuMode(button.dataset.modeOption);
+    const isLegacy = isLegacyMode(mode);
+    const isHidden = isLegacy && !appState.legacyModesUnlocked;
     const isActive = mode === selectedMode;
+
+    button.classList.toggle("hidden", isHidden);
+    button.classList.toggle("legacy-mode", isLegacy);
+    button.setAttribute("aria-hidden", isHidden ? "true" : "false");
     button.classList.toggle("active", isActive);
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  }
+
+  if (menuEasterEggStatusElement) {
+    menuEasterEggStatusElement.classList.toggle("hidden", !appState.legacyModesUnlocked);
   }
 
   startButton.textContent = `Iniciar ${formatModeLabel(selectedMode)}`;
@@ -1455,11 +1571,6 @@ function renderMenuSettingsPanel() {
       "aria-pressed",
       appState.isSettingsOpen ? "true" : "false"
     );
-  }
-
-  const theme = getCurrentTheme();
-  for (const input of themeChoiceInputs) {
-    input.checked = input.value === theme;
   }
 
   const mobileControl = normalizeMobileControl(appState.uiSettings.mobileControl);
@@ -1665,7 +1776,15 @@ function render() {
 
   if (modeState) {
     ensureGrid(modeState.base.width, modeState.base.height);
-    renderBoard(modeState);
+    renderBoard(modeState, {
+      interpolation:
+        modeState.mode === "souls"
+          ? {
+            fromState: appState.soulsInterpolationFromState,
+            alpha: appState.soulsInterpolationAlpha,
+          }
+          : null,
+    });
   }
 
   renderHud(modeState);
@@ -1689,6 +1808,7 @@ function render() {
 }
 
 function startGame(mode) {
+  resetLegacyMenuSession();
   appState.isSettingsOpen = false;
   if (mode === "souls") {
     appState.modeState = createModeState({
@@ -1708,6 +1828,7 @@ function startGame(mode) {
   appState.soulsPendingDirection = null;
   appState.pressedDirections.clear();
   appState.rewardRenderKey = null;
+  resetSoulsRenderTiming();
   appState.runStartedAtMs = Date.now();
   appState.runEndedAtMs = null;
   syncSoulsProfileFromModeState();
@@ -1726,6 +1847,7 @@ function restartGame() {
   appState.soulsPendingDirection = null;
   appState.pressedDirections.clear();
   appState.rewardRenderKey = null;
+  resetSoulsRenderTiming();
   appState.runStartedAtMs = Date.now();
   appState.runEndedAtMs = null;
   syncSoulsProfileFromModeState();
@@ -1739,6 +1861,7 @@ function restartGame() {
 function backToMenu() {
   syncSoulsProfileFromModeState();
   stopTicker();
+  resetLegacyMenuSession({ forceSoulsSelection: true });
   appState.rewardRenderKey = null;
   appState.runStartedAtMs = 0;
   appState.runEndedAtMs = null;
@@ -1792,6 +1915,14 @@ function queueDirectionForCurrentMode(direction) {
   }
 
   appState.modeState = queueModeDirection(appState.modeState, direction);
+}
+
+function releaseDirectionForCurrentMode(direction) {
+  appState.pressedDirections.delete(direction);
+  const effectiveDirection = resolveEffectiveDirection(appState.pressedDirections);
+  if (effectiveDirection) {
+    queueDirectionForCurrentMode(effectiveDirection);
+  }
 }
 
 function resolveEffectiveDirection(pressed) {
@@ -1862,6 +1993,12 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (appState.screen === SCREEN_MENU && consumeMenuKonamiKey(event.key)) {
+    event.preventDefault();
+    render();
+    return;
+  }
+
   if (appState.screen === SCREEN_MENU && event.key === "Enter") {
     event.preventDefault();
     startGame(getSelectedMenuMode());
@@ -1916,8 +2053,19 @@ document.addEventListener("keyup", (event) => {
 window.addEventListener("blur", () => {
   appState.pressedDirections.clear();
   appState.gestureSession = null;
+  resetSoulsRenderTiming();
   if (appState.modeState && appState.modeState.mode !== "souls") {
     ensureTickerState();
+  }
+});
+
+window.addEventListener("focus", () => {
+  resetSoulsRenderTiming();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") {
+    resetSoulsRenderTiming();
   }
 });
 
@@ -1931,7 +2079,11 @@ startButton.addEventListener("click", () => {
 
 for (const button of menuModeButtons) {
   button.addEventListener("click", () => {
-    setSelectedMenuMode(button.dataset.modeOption);
+    const requested = normalizeMenuMode(button.dataset.modeOption);
+    if (!isMenuModeAvailable(requested)) {
+      return;
+    }
+    setSelectedMenuMode(requested);
     render();
   });
 }
@@ -2009,24 +2161,6 @@ if (devCodeApplyButton) {
   });
 }
 
-if (themeToggle) {
-  themeToggle.addEventListener("change", () => {
-    const nextTheme = themeToggle.checked ? "dark" : "light";
-    applyTheme(nextTheme);
-    saveTheme(nextTheme);
-    render();
-  });
-}
-
-for (const input of themeChoiceInputs) {
-  input.addEventListener("change", () => {
-    if (!input.checked) return;
-    applyTheme(input.value === "dark" ? "dark" : "light");
-    saveTheme(getCurrentTheme());
-    render();
-  });
-}
-
 for (const input of mobileControlChoiceInputs) {
   input.addEventListener("change", () => {
     if (!input.checked) return;
@@ -2058,7 +2192,11 @@ for (const button of touchButtons) {
     if (event) {
       event.preventDefault();
     }
-    queueDirectionForCurrentMode(direction);
+    appState.pressedDirections.add(direction);
+    const effectiveDirection = resolveEffectiveDirection(appState.pressedDirections);
+    if (effectiveDirection) {
+      queueDirectionForCurrentMode(effectiveDirection);
+    }
   };
 
   const releaseDirection = () => {
@@ -2150,6 +2288,6 @@ if (gameAreaElement) {
   });
 }
 
-applyTheme(getInitialTheme());
+applyTheme();
 setScreen(SCREEN_MENU);
 render();
