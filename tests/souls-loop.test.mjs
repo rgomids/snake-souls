@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { calculateFixedSteps } = require("../src/souls-loop.js");
+const { calculateFixedSteps } = require("../src/game/souls-loop.js");
 
 test("fixed-step scheduler computes steps and remaining accumulator", () => {
   const result = calculateFixedSteps({

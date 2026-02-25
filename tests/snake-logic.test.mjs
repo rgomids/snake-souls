@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { createInitialState, placeFood, queueDirection, stepState } = require(
-  "../src/snake-logic.js"
+  "../src/core/snake-logic.js"
 );
 
 test("moves one cell in current direction without growing", () => {

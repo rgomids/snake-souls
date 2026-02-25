@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const SoulsProfile = require("../src/souls-profile.js");
+const SoulsProfile = require("../src/profile/souls-profile.js");
 const {
   chooseSoulsReward,
   createModeState,
   devSetSoulsFloor,
   stepModeState,
-} = require("../src/snake-modes.js");
+} = require("../src/modes/snake-modes.js");
 
 function cloneState(state) {
   return structuredClone(state);
