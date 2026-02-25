@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snake Souls</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app" data-screen="menu" data-mode="menu">
+      <div class="app-shell">
+        <aside class="sidebar" aria-label="Instruções e chefes">
+          <section class="sidebar-card instructions-panel">
+            <div class="instructions-panel-head">
+              <h2>Controles rápidos</h2>
+              <button
+                id="instructions-toggle-btn"
+                class="instructions-toggle-btn"
+                type="button"
+                aria-expanded="true"
+              >
+                Minimizar
+              </button>
+            </div>
+            <ul id="instructions-list">
+              <li>Setas ou WASD para mover.</li>
+              <li>Espaço/P para pausar, R para reiniciar.</li>
+              <li>No Souls, derrote bosses coletando sigilos.</li>
+              <li>Ao vencer boss, escolha 1 poder para a build.</li>
+              <li>Runas em risco viram eco ao morrer.</li>
+            </ul>
+          </section>
+          <section class="sidebar-card legend-panel">
+            <h2>Legenda dos blocos</h2>
+            <div class="legend-list" aria-label="Legenda">
+              <div class="legend-item"><span class="legend-swatch head"></span><span>Cabeça da cobra</span></div>
+              <div class="legend-item"><span class="legend-swatch snake"></span><span>Corpo da cobra</span></div>
+              <div class="legend-item"><span class="legend-swatch food"></span><span>Comida</span></div>
+              <div class="legend-item"><span class="legend-swatch barrier"></span><span>Barreira</span></div>
+              <div class="legend-item"><span class="legend-swatch enemy"></span><span>Inimigo / Boss</span></div>
+              <div class="legend-item"><span class="legend-swatch power-up"></span><span>Power-up (Levels)</span></div>
+              <div class="legend-item"><span class="legend-swatch sigil"></span><span>Sigilo (Souls)</span></div>
+              <div class="legend-item"><span class="legend-swatch hazard"></span><span>Hazard</span></div>
+              <div class="legend-item"><span class="legend-swatch echo"></span><span>Eco</span></div>
+            </div>
+          </section>
+          <section class="sidebar-card systems-panel">
+            <h2>Sistemas do jogo</h2>
+            <div class="sidebar-text-list">
+              <p><strong>Runas:</strong> comida/sigilo/boss geram runas. No Souls, parte fica em risco na run e parte vai para a carteira em checkpoints.</p>
+              <p><strong>Poderes:</strong> após boss você escolhe 1 poder para a build. Alguns acumulam stacks e mudam ritmo/segurança da run.</p>
+              <p><strong>Eco:</strong> ao morrer, runas em risco viram eco. Na próxima run, colete o eco para recuperar esse valor.</p>
+            </div>
+          </section>
+          <section class="sidebar-card modes-panel">
+            <h2>Modos de jogo</h2>
+            <div class="sidebar-text-list">
+              <p><strong>Traditional:</strong> loop clássico contínuo.</p>
+              <p><strong>Levels:</strong> objetivos por nível, com escalada de dificuldade.</p>
+              <p><strong>Souls:</strong> floors/ciclos, bosses, poderes e economia de runas.</p>
+            </div>
+          </section>
+          <section class="sidebar-card boss-intel-panel">
+            <h2>Chefes derrotados</h2>
+            <p class="sidebar-muted">
+              Derrote chefes no modo Souls para desbloquear informações.
+            </p>
+            <div id="boss-intel-list" class="boss-intel-list"></div>
+          </section>
+        </aside>
+
+        <section class="main-pane">
+          <header class="top-bar">
+            <h1>Snake Souls</h1>
+            <div class="top-meta">
+              <div class="scoreboard">
+                <span>Pontos: <strong id="score">0</strong></span>
+                <span>Status: <strong id="status">Pronto</strong></span>
+              </div>
+            </div>
+          </header>
+
+          <section id="dev-panel" class="dev-panel hidden" aria-label="Modo desenvolvedor">
+            <div class="dev-panel-head">
+              <strong>Modo Desenvolvedor</strong>
+              <span>Atalho: F2</span>
+            </div>
+            <div class="dev-panel-controls">
+              <input
+                id="dev-code-input"
+                type="text"
+                placeholder="Ex.: SOULS_BOSS FINAL"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button id="dev-code-apply" type="button">Executar</button>
+            </div>
+            <p id="dev-code-feedback" class="dev-feedback info">
+              Digite um código e pressione Enter ou clique em Executar.
+            </p>
+          </section>
+
+          <section id="menu-screen" class="menu-screen" aria-label="Game menu">
+            <h2>Escolha o modo</h2>
+            <p class="menu-help">
+              Selecione uma opção abaixo e inicie a partida.
+            </p>
+            <p class="menu-version">Versão: <strong id="game-version">-</strong></p>
+            <div class="menu-options" aria-label="Game modes">
+              <button
+                type="button"
+                class="mode-option active"
+                data-mode-option="traditional"
+                aria-pressed="true"
+              >
+                <span class="mode-option-icon" aria-hidden="true">&#128013;</span>
+                <span class="mode-option-content">
+                  <strong>Clássico</strong>
+                  <small>Loop clássico contínuo.</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                class="mode-option"
+                data-mode-option="levels"
+                aria-pressed="false"
+              >
+                <span class="mode-option-icon" aria-hidden="true">&#127919;</span>
+                <span class="mode-option-content">
+                  <strong>Níveis</strong>
+                  <small>Objetivos por nível com escalada.</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                class="mode-option"
+                data-mode-option="souls"
+                aria-pressed="false"
+              >
+                <span class="mode-option-icon" aria-hidden="true">&#9876;</span>
+                <span class="mode-option-content">
+                  <strong>Souls</strong>
+                  <small>Floors, bosses e build de poderes.</small>
+                </span>
+              </button>
+              <button id="menu-settings-option" type="button" class="mode-option">
+                <span class="mode-option-icon" aria-hidden="true">&#9881;</span>
+                <span class="mode-option-content">
+                  <strong>Configurações</strong>
+                  <small>Tema e controles mobile.</small>
+                </span>
+              </button>
+            </div>
+            <div class="menu-controls">
+              <button id="start-btn" type="button">Iniciar Clássico</button>
+            </div>
+            <section id="settings-menu" class="settings-menu hidden" aria-label="Configurações">
+              <div class="settings-group">
+                <h3>Tema</h3>
+                <label>
+                  <input type="radio" name="theme-choice" value="light" />
+                  Claro
+                </label>
+                <label>
+                  <input type="radio" name="theme-choice" value="dark" />
+                  Escuro
+                </label>
+              </div>
+              <div class="settings-group">
+                <h3>Controles no celular</h3>
+                <label>
+                  <input type="radio" name="mobile-control-choice" value="dpad" />
+                  D-pad
+                </label>
+                <label>
+                  <input type="radio" name="mobile-control-choice" value="swipe" />
+                  Gestos (swipe)
+                </label>
+                <label>
+                  <input type="radio" name="mobile-control-choice" value="tap" />
+                  Toque direcional
+                </label>
+              </div>
+            </section>
+
+            <section id="souls-menu" class="souls-menu hidden" aria-label="Souls setup">
+              <p class="souls-summary">
+                Runas na carteira: <strong id="souls-wallet-menu">0</strong>
+                <span class="souls-divider">|</span>
+                Boss final vencido: <strong id="souls-clears-menu">0</strong>
+              </p>
+              <div id="souls-snakes" class="souls-snakes"></div>
+              <div class="souls-unlock-actions">
+                <span id="souls-unlock-label">Sem desbloqueio disponível.</span>
+                <button id="souls-unlock-btn" type="button">Desbloquear</button>
+              </div>
+            </section>
+          </section>
+
+          <section id="game-screen" class="game-screen hidden" aria-label="Game view">
+            <section class="hud" aria-label="Game details">
+              <span>Modo: <strong id="mode-label">-</strong></span>
+              <span class="levels-only">Nível: <strong id="level-value">-</strong></span>
+              <span class="levels-only"
+                >Progresso: <strong id="level-progress">-</strong></span
+              >
+              <span class="levels-only">Escudo: <strong id="shield-time">0.0s</strong></span>
+              <span class="souls-only">Andar: <strong id="souls-floor">-</strong></span>
+              <span class="souls-only">Ciclo: <strong id="souls-cycle">-</strong></span>
+              <span class="souls-only">Fase: <strong id="souls-stage">-</strong></span>
+              <span class="souls-only">Objetivo: <strong id="souls-objective">-</strong></span>
+              <span class="souls-only">Runas em risco: <strong id="souls-carried">0</strong></span>
+              <span class="souls-only">Runas carteira: <strong id="souls-wallet">0</strong></span>
+              <span class="souls-only">Armadura: <strong id="souls-armor">0</strong></span>
+            </section>
+
+            <section class="game-area" aria-label="Snake game board">
+              <div id="grid" class="grid" role="img" aria-label="Snake grid"></div>
+              <div id="souls-countdown" class="souls-countdown hidden">3</div>
+              <div id="souls-stage-message" class="souls-stage-message hidden">
+                Estagio concluido
+              </div>
+              <div id="souls-sigil-arrow" class="souls-sigil-arrow hidden" aria-hidden="true">
+                <span class="souls-sigil-arrow-icon">&#10148;</span>
+                <small id="souls-sigil-distance">0</small>
+              </div>
+              <div id="souls-stamina" class="souls-stamina hidden" aria-hidden="true">
+                <div class="souls-stamina-track">
+                  <div id="souls-stamina-fill" class="souls-stamina-fill"></div>
+                </div>
+              </div>
+              <button
+                id="floating-pause-btn"
+                class="floating-pause-btn hidden"
+                type="button"
+                aria-label="Pausar ou retomar"
+              >
+                Pausar
+              </button>
+            </section>
+
+            <section class="actions" aria-label="Game actions">
+              <button id="pause-btn" type="button">Pausar</button>
+              <button id="restart-btn" type="button">Reiniciar</button>
+              <button id="menu-btn" type="button">Voltar ao menu</button>
+            </section>
+
+            <section class="touch-controls" aria-label="Directional controls">
+              <button type="button" data-direction="UP">Cima</button>
+              <div class="touch-row">
+                <button type="button" data-direction="LEFT">Esquerda</button>
+                <button type="button" data-direction="DOWN">Baixo</button>
+                <button type="button" data-direction="RIGHT">Direita</button>
+              </div>
+            </section>
+
+            <p class="help">
+              Use setas ou WASD. Pressione Espaço/P para pausar e R para reiniciar.
+            </p>
+
+            <section id="souls-death-summary" class="souls-death-summary hidden">
+              <span>Runas perdidas: <strong id="souls-death-runes">0</strong></span>
+              <span>Eco criado: <strong id="souls-death-echo">0</strong></span>
+            </section>
+
+            <section id="gameover-panel" class="gameover-panel hidden" aria-label="Resumo de game over">
+              <div class="gameover-card">
+                <h2>Fim de Jogo</h2>
+                <p id="gameover-summary" class="gameover-summary">
+                  Você foi derrotado nesta run.
+                </p>
+                <div class="gameover-stats">
+                  <span>Modo: <strong id="gameover-mode">-</strong></span>
+                  <span>Pontos: <strong id="gameover-score">0</strong></span>
+                  <span>Tamanho: <strong id="gameover-length">0</strong></span>
+                  <span>Tempo: <strong id="gameover-time">00:00</strong></span>
+                  <span><span id="gameover-extra-title">Progresso</span>: <strong id="gameover-extra">-</strong></span>
+                </div>
+                <div class="gameover-actions">
+                  <button id="gameover-restart-btn" type="button">Jogar novamente</button>
+                  <button id="gameover-menu-btn" type="button">Menu principal</button>
+                </div>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <aside class="sidebar sidebar-right" aria-label="Poderes coletados">
+          <section class="sidebar-card powers-panel">
+            <h2>Poderes coletados</h2>
+            <p class="sidebar-muted">
+              Mostra os poderes ativos da run atual no modo Souls.
+            </p>
+            <div id="souls-powers-list" class="souls-powers-list"></div>
+          </section>
+        </aside>
+      </div>
+
+      <section id="souls-reward-modal" class="souls-reward-modal hidden" aria-label="Boss reward">
+        <div class="souls-reward-card">
+          <h3>Recompensa do Boss</h3>
+          <p class="souls-reward-help">
+            Escolha um poder para sua build. Você pode rerolar uma vez por 30 runas.
+          </p>
+          <div id="souls-reward-options" class="souls-reward-options"></div>
+          <button id="souls-reroll-btn" type="button">Rerolar (30)</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="./src/snake-logic.js"></script>
+    <script src="./src/souls-data.js"></script>
+    <script src="./src/souls-profile.js"></script>
+    <script src="./src/souls-world.js"></script>
+    <script src="./src/snake-modes.js"></script>
+    <script src="./src/dev-codes.js"></script>
+    <script src="./src/souls-loop.js"></script>
+    <script src="./src/souls-ui-helpers.js"></script>
+    <script src="./src/main.js"></script>
+  </body>
+</html>

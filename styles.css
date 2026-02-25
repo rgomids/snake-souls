@@ -1,0 +1,1130 @@
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --text: #20242a;
+  --muted: #64707d;
+  --line: #d7dde4;
+  --cell-border: #edf0f3;
+  --cell-bg: #f9fbfd;
+  --snake: #1f7a46;
+  --snake-head: #176338;
+  --food: #d94f3d;
+  --barrier: #697480;
+  --enemy: #b74fb8;
+  --telegraph: #f2a43a;
+  --power: #e0b826;
+  --sigil: #8e5de6;
+  --hazard: #ff7f50;
+  --echo: #f0d84f;
+}
+
+[data-theme="dark"] {
+  --bg: #111417;
+  --panel: #1a1f25;
+  --text: #e8edf2;
+  --muted: #a8b4bf;
+  --line: #2b3440;
+  --cell-border: #26303a;
+  --cell-bg: #182029;
+  --snake: #2a9d5c;
+  --snake-head: #36b46e;
+  --food: #eb6b57;
+  --barrier: #7e8b98;
+  --enemy: #cd6ac8;
+  --telegraph: #f7b55a;
+  --power: #f4cc3f;
+  --sigil: #b88bff;
+  --hazard: #ff9d74;
+  --echo: #ffd970;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(220px, 280px);
+  gap: 14px;
+  align-items: start;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.sidebar-card h2 {
+  margin: 0 0 8px;
+}
+
+.sidebar-muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.instructions-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.instructions-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.instructions-toggle-btn {
+  display: none;
+  font-size: 0.76rem;
+  padding: 5px 8px;
+}
+
+.legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: var(--cell-bg);
+  flex: 0 0 14px;
+}
+
+.legend-swatch.head {
+  background: var(--snake-head);
+}
+
+.legend-swatch.snake {
+  background: var(--snake);
+}
+
+.legend-swatch.food {
+  background: var(--food);
+}
+
+.legend-swatch.barrier {
+  background: var(--barrier);
+}
+
+.legend-swatch.enemy {
+  background: var(--enemy);
+}
+
+.legend-swatch.power-up {
+  background: var(--power);
+}
+
+.legend-swatch.sigil {
+  background: var(--sigil);
+}
+
+.legend-swatch.hazard {
+  background: var(--hazard);
+}
+
+.legend-swatch.echo {
+  background: var(--echo);
+}
+
+.sidebar-text-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-text-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.main-pane {
+  min-width: 0;
+}
+
+.dev-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dev-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.dev-panel-head span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.dev-panel-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-panel-controls input {
+  flex: 1 1 200px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.dev-feedback {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.dev-feedback.info {
+  color: var(--muted);
+}
+
+.dev-feedback.success {
+  color: #1f7a46;
+}
+
+.dev-feedback.error {
+  color: #c24a3a;
+}
+
+.boss-intel-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.boss-intel-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.boss-intel-card.locked {
+  opacity: 0.72;
+}
+
+.boss-intel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.boss-intel-tag {
+  font-size: 0.74rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.boss-intel-detail {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.souls-powers-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.power-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.power-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.power-stack {
+  color: var(--muted);
+  font-size: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.power-card-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.top-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.scoreboard {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  flex-wrap: wrap;
+}
+
+.menu-screen {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.menu-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.menu-version {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.menu-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.mode-option {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.mode-option:hover {
+  border-color: var(--snake);
+}
+
+.mode-option.active {
+  border-color: var(--snake);
+  background: var(--cell-bg);
+}
+
+.mode-option-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  flex: 0 0 34px;
+  line-height: 1;
+  border: 1px solid var(--line);
+}
+
+.mode-option[data-mode-option="traditional"] .mode-option-icon {
+  color: var(--snake-head);
+  background: rgba(31, 122, 70, 0.14);
+}
+
+.mode-option[data-mode-option="levels"] .mode-option-icon {
+  color: #896100;
+  background: rgba(224, 184, 38, 0.22);
+}
+
+.mode-option[data-mode-option="souls"] .mode-option-icon {
+  color: #6a3ab4;
+  background: rgba(142, 93, 230, 0.18);
+}
+
+#menu-settings-option .mode-option-icon {
+  color: #2f5f8a;
+  background: rgba(76, 125, 173, 0.18);
+}
+
+.mode-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mode-option-content strong {
+  font-size: 0.95rem;
+}
+
+.mode-option-content small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.menu-controls {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.menu-controls button {
+  min-width: 190px;
+}
+
+.settings-menu {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-group h3 {
+  margin: 0 0 2px;
+  font-size: 0.95rem;
+}
+
+.settings-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.souls-menu {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.souls-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.souls-divider {
+  margin: 0 6px;
+}
+
+.souls-snakes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.snake-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.snake-card.active {
+  border-color: var(--snake);
+}
+
+.snake-card.locked {
+  opacity: 0.75;
+}
+
+.snake-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.snake-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.snake-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.souls-unlock-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.souls-unlock-actions span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.game-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.app[data-mode="menu"] .levels-only,
+.app[data-mode="traditional"] .levels-only,
+.app[data-mode="souls"] .levels-only {
+  display: none;
+}
+
+.app[data-mode="menu"] .souls-only,
+.app[data-mode="traditional"] .souls-only,
+.app[data-mode="levels"] .souls-only {
+  display: none;
+}
+
+.app[data-screen="menu"] .app-shell {
+  grid-template-columns: 1fr;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.app[data-screen="menu"] .sidebar {
+  display: none;
+}
+
+.app[data-screen="menu"] .scoreboard {
+  display: none;
+}
+
+.app[data-screen="menu"] .main-pane {
+  min-height: calc(100vh - 72px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.game-area {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  position: relative;
+}
+
+.grid {
+  --grid-width: 20;
+  --grid-height: 20;
+  width: min(100%, 500px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--grid-width), 1fr);
+  border: 1px solid var(--line);
+}
+
+.cell {
+  aspect-ratio: 1 / 1;
+  border-right: 1px solid var(--cell-border);
+  border-bottom: 1px solid var(--cell-border);
+  background: var(--cell-bg);
+}
+
+.cell.snake {
+  background: var(--snake);
+}
+
+.cell.head {
+  background: var(--snake-head);
+}
+
+.cell.food {
+  background: var(--food);
+}
+
+.cell.barrier {
+  background: var(--barrier);
+}
+
+.cell.enemy {
+  background: var(--enemy);
+}
+
+.cell.enemy.minion {
+  background: #4f7fc2;
+}
+
+.cell.telegraph {
+  background: var(--telegraph);
+}
+
+.cell.power-up {
+  background: var(--power);
+}
+
+.cell.sigil {
+  background: var(--sigil);
+}
+
+.cell.hazard {
+  background: var(--hazard);
+}
+
+.cell.echo {
+  background: var(--echo);
+}
+
+.cell.snake.variant-basica {
+  background: #1f7a46;
+}
+
+.cell.head.variant-basica {
+  background: #176338;
+}
+
+.cell.snake.variant-veloz {
+  background: #2b77d8;
+}
+
+.cell.head.variant-veloz {
+  background: #1f5aa1;
+}
+
+.cell.snake.variant-tanque {
+  background: #b34b3f;
+}
+
+.cell.head.variant-tanque {
+  background: #8f3a30;
+}
+
+.cell.snake.variant-vidente {
+  background: #7446b8;
+}
+
+.cell.head.variant-vidente {
+  background: #5d3597;
+}
+
+.actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.theme-switch input {
+  margin: 0;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.touch-controls {
+  margin-top: 12px;
+  display: none;
+  gap: 8px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.touch-row {
+  display: flex;
+  gap: 8px;
+}
+
+.help {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.souls-death-summary {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.souls-reward-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 20;
+}
+
+.souls-countdown {
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(2.5rem, 10vw, 4.5rem);
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.souls-stage-message {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 18px;
+  z-index: 6;
+}
+
+.souls-sigil-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.souls-sigil-arrow-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--sigil);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.souls-sigil-arrow[data-target="food"] .souls-sigil-arrow-icon {
+  color: var(--food);
+}
+
+.souls-sigil-arrow small {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.souls-stamina {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(340px, 72vw);
+  z-index: 8;
+  pointer-events: none;
+}
+
+.souls-stamina-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.souls-stamina-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #3aa45f, #7fd38b);
+  transition: width 80ms linear;
+}
+
+.souls-stamina[data-phase="recovering_lock"] .souls-stamina-fill {
+  background: linear-gradient(90deg, #b98a35, #e7bd64);
+}
+
+.souls-stamina[data-phase="exhausted"] .souls-stamina-fill {
+  background: linear-gradient(90deg, #a84444, #e17676);
+}
+
+.floating-pause-btn {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 40;
+  touch-action: manipulation;
+  pointer-events: auto;
+}
+
+.gameover-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.gameover-card {
+  width: min(560px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gameover-card h2 {
+  margin: 0;
+}
+
+.gameover-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.gameover-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.gameover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gameover-actions button {
+  min-width: 180px;
+}
+
+@keyframes souls-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes souls-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes souls-slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app[data-mode="souls"][data-souls-ui="immersive"] .app-shell {
+  grid-template-columns: 1fr;
+  max-width: none;
+  gap: 0;
+}
+
+.app[data-mode="souls"][data-souls-ui="immersive"] .sidebar,
+.app[data-mode="souls"][data-souls-ui="immersive"] .top-bar,
+.app[data-mode="souls"][data-souls-ui="immersive"] .hud,
+.app[data-mode="souls"][data-souls-ui="immersive"] .actions,
+.app[data-mode="souls"][data-souls-ui="immersive"] .help,
+.app[data-mode="souls"][data-souls-ui="immersive"] .souls-death-summary,
+.app[data-mode="souls"][data-souls-ui="immersive"] .dev-panel {
+  display: none !important;
+}
+
+.app[data-mode="souls"][data-souls-ui="immersive"] .main-pane {
+  min-height: 100vh;
+}
+
+.app[data-mode="souls"][data-souls-ui="immersive"] .game-screen {
+  min-height: 100vh;
+}
+
+.app[data-mode="souls"][data-souls-ui="immersive"] .game-area {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 25;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: var(--bg);
+}
+
+.app[data-mode="souls"][data-souls-ui="immersive"] .grid {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  border: none;
+  grid-template-rows: repeat(var(--grid-height), 1fr);
+}
+
+.app[data-mode="souls"][data-souls-ui="immersive"] .touch-controls {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 38;
+  margin-top: 0;
+}
+
+.app[data-mode="souls"][data-souls-ui="panel"][data-screen="playing"] .sidebar:not(.hidden),
+.app[data-mode="souls"][data-souls-ui="panel"][data-screen="gameover"] .sidebar:not(.hidden) {
+  animation: souls-slide-in-left 280ms ease;
+}
+
+.app[data-mode="souls"][data-souls-ui="panel"][data-screen="playing"] .sidebar-right:not(.hidden),
+.app[data-mode="souls"][data-souls-ui="panel"][data-screen="gameover"] .sidebar-right:not(.hidden) {
+  animation: souls-slide-in-right 280ms ease;
+}
+
+.app[data-mode="souls"][data-souls-ui="panel"][data-screen="playing"] .hud,
+.app[data-mode="souls"][data-souls-ui="panel"][data-screen="gameover"] .hud {
+  animation: souls-slide-in-top 280ms ease;
+}
+
+.app[data-screen="gameover"] .gameover-panel {
+  display: flex;
+}
+
+.souls-reward-card {
+  width: min(540px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.souls-reward-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.souls-reward-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.souls-reward-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.souls-reward-option {
+  text-align: left;
+  min-height: 82px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.souls-reward-option small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (pointer: coarse) {
+  .touch-controls {
+    display: flex;
+  }
+}
+
+.app[data-mobile-control="swipe"] .touch-controls,
+.app[data-mobile-control="tap"] .touch-controls {
+  display: none !important;
+}
+
+.app[data-mobile-control="swipe"] .game-area,
+.app[data-mobile-control="tap"] .game-area {
+  touch-action: none;
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app[data-screen="menu"] .main-pane {
+    min-height: auto;
+  }
+
+  .instructions-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .instructions-panel.mobile-collapsed #instructions-list {
+    display: none;
+  }
+
+  .gameover-card {
+    padding: 14px;
+  }
+}
