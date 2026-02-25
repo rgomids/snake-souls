@@ -6,14 +6,21 @@
     DOWN: Object.freeze({ x: 0, y: 1 }),
     LEFT: Object.freeze({ x: -1, y: 0 }),
     RIGHT: Object.freeze({ x: 1, y: 0 }),
+    UP_LEFT: Object.freeze({ x: -1, y: -1 }),
+    UP_RIGHT: Object.freeze({ x: 1, y: -1 }),
+    DOWN_LEFT: Object.freeze({ x: -1, y: 1 }),
+    DOWN_RIGHT: Object.freeze({ x: 1, y: 1 }),
   });
 
-  const OPPOSITE_DIRECTION = Object.freeze({
-    UP: "DOWN",
-    DOWN: "UP",
-    LEFT: "RIGHT",
-    RIGHT: "LEFT",
-  });
+  function isOppositeDirection(current, next) {
+    const v1 = DIRECTION_VECTORS[current];
+    const v2 = DIRECTION_VECTORS[next];
+    if (!v1 || !v2) return false;
+
+    // Dot product: x1*x2 + y1*y2
+    // If negative, the angle is obtuse (> 90 degrees), which means it's "backwards"
+    return v1.x * v2.x + v1.y * v2.y < 0;
+  }
 
   function keyForPosition(position) {
     return `${position.x},${position.y}`;
@@ -25,10 +32,6 @@
 
   function isValidDirection(direction) {
     return Object.prototype.hasOwnProperty.call(DIRECTION_VECTORS, direction);
-  }
-
-  function isOppositeDirection(current, next) {
-    return OPPOSITE_DIRECTION[current] === next;
   }
 
   function directionFromInputKey(key) {
@@ -82,7 +85,7 @@
       height,
       snake,
       direction: "RIGHT",
-      pendingDirection: "RIGHT",
+      inputQueue: [],
       food: placeFood(width, height, snake, rng),
       score: 0,
       isGameOver: false,
@@ -95,17 +98,26 @@
       return state;
     }
 
-    if (direction === state.direction) {
+    const lastQueued = state.inputQueue.length > 0
+      ? state.inputQueue[state.inputQueue.length - 1]
+      : state.direction;
+
+    if (direction === lastQueued) {
       return state;
     }
 
-    if (isOppositeDirection(state.direction, direction)) {
+    if (isOppositeDirection(lastQueued, direction)) {
+      return state;
+    }
+
+    const nextQueue = [...state.inputQueue, direction];
+    if (nextQueue.length > 3) {
       return state;
     }
 
     return {
       ...state,
-      pendingDirection: direction,
+      inputQueue: nextQueue,
     };
   }
 
@@ -126,7 +138,9 @@
     }
 
     const rng = options.rng ?? Math.random;
-    const nextDirection = state.pendingDirection ?? state.direction;
+    const nextQueue = [...(state.inputQueue ?? [])];
+    const nextDirection = nextQueue.shift() ?? state.direction;
+
     const movement = DIRECTION_VECTORS[nextDirection];
     const currentHead = state.snake[0];
     const nextHead = {
@@ -143,7 +157,7 @@
       return {
         ...state,
         direction: nextDirection,
-        pendingDirection: nextDirection,
+        inputQueue: nextQueue,
         isGameOver: true,
       };
     }
@@ -164,7 +178,7 @@
         ...state,
         snake: nextSnake,
         direction: nextDirection,
-        pendingDirection: nextDirection,
+        inputQueue: nextQueue,
         isGameOver: true,
       };
     }
@@ -181,7 +195,7 @@
       ...state,
       snake: nextSnake,
       direction: nextDirection,
-      pendingDirection: nextDirection,
+      inputQueue: nextQueue,
       food: nextFood,
       score: nextScore,
       isGameOver: nextFood === null ? true : state.isGameOver,

@@ -152,11 +152,24 @@ if (initiallySelectedMenuButton) {
   );
 }
 
-const cells = [];
 let gridWidth = 0;
 let gridHeight = 0;
-let cellClassCache = [];
-let cellOpacityCache = [];
+let canvasCtx = null;
+let colorCache = null;
+
+function getColor(name) {
+  if (!colorCache) {
+    colorCache = new Map();
+  }
+  if (colorCache.has(name)) {
+    return colorCache.get(name);
+  }
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  colorCache.set(name, value);
+  return value;
+}
 
 function loadSoulsProfileFromStorage() {
   try {
@@ -260,6 +273,7 @@ function saveTheme(theme) {
 
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
+  colorCache = null; // Invalidate cache
   if (themeToggle) {
     themeToggle.checked = theme === "dark";
   }
@@ -409,7 +423,7 @@ function toRenderPosition(modeState, position, origin) {
 }
 
 function ensureGrid(width, height) {
-  if (gridWidth === width && gridHeight === height && cells.length > 0) {
+  if (gridWidth === width && gridHeight === height && canvasCtx) {
     return;
   }
 
@@ -417,22 +431,10 @@ function ensureGrid(width, height) {
   gridHeight = height;
   gridElement.style.setProperty("--grid-width", String(width));
   gridElement.style.setProperty("--grid-height", String(height));
-  gridElement.innerHTML = "";
-  cells.length = 0;
 
-  const fragment = document.createDocumentFragment();
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cells.push(cell);
-      fragment.appendChild(cell);
-    }
-  }
-
-  gridElement.appendChild(fragment);
-  cellClassCache = new Array(cells.length).fill("cell");
-  cellOpacityCache = new Array(cells.length).fill("");
+  gridElement.width = width;
+  gridElement.height = height;
+  canvasCtx = gridElement.getContext("2d");
 }
 
 function indexForPosition(position) {
@@ -450,68 +452,84 @@ function isInsideGrid(position) {
 }
 
 function renderBoard(modeState) {
-  if (!modeState || cells.length === 0) {
+  if (!modeState || !canvasCtx) {
     return;
   }
 
-  const nextClassMap = new Array(cells.length).fill("cell");
-  const nextOpacityMap = new Array(cells.length).fill("");
   const soulsOrigin = getSoulsViewportOrigin(modeState);
 
-  const appendClassAt = (index, className) => {
-    nextClassMap[index] += ` ${className}`;
-  };
+  // Clear background
+  canvasCtx.fillStyle = getColor("--cell-bg");
+  canvasCtx.fillRect(0, 0, gridWidth, gridHeight);
 
-  const paint = (worldPosition, className, extraClass = null, opacity = null) => {
+  // Draw grid lines (optional, but original had them)
+  // Original had border-right/bottom on cells. Canvas can draw them too if worth it.
+  // For performance, maybe skip, but for visual fidelity, let's add them.
+  canvasCtx.strokeStyle = getColor("--cell-border");
+  canvasCtx.lineWidth = 0.05; // Thin lines in coordinate space
+  for (let x = 1; x < gridWidth; x++) {
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(x, 0);
+    canvasCtx.lineTo(x, gridHeight);
+    canvasCtx.stroke();
+  }
+  for (let y = 1; y < gridHeight; y++) {
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(0, y);
+    canvasCtx.lineTo(gridWidth, y);
+    canvasCtx.stroke();
+  }
+
+  const paint = (worldPosition, colorKey, opacity = 1, extra = null) => {
     const renderPosition = toRenderPosition(modeState, worldPosition, soulsOrigin);
     if (!renderPosition) return;
     if (!isInsideGrid(renderPosition)) return;
-    const index = indexForPosition(renderPosition);
-    appendClassAt(index, className);
-    if (extraClass) {
-      appendClassAt(index, extraClass);
-    }
-    if (opacity !== null) {
-      nextOpacityMap[index] = String(opacity);
-    }
+
+    canvasCtx.globalAlpha = opacity;
+    canvasCtx.fillStyle = getColor(colorKey);
+
+    // Some specials have hardcoded colors in old CSS
+    if (extra === "minion") canvasCtx.fillStyle = "#4f7fc2";
+
+    canvasCtx.fillRect(renderPosition.x, renderPosition.y, 1, 1);
+    canvasCtx.globalAlpha = 1;
   };
 
   for (const barrier of modeState.barriers) {
-    paint(barrier, "barrier");
+    paint(barrier, "--barrier");
   }
 
   if (modeState.mode === "souls") {
     for (const hazard of modeState.souls.hazards) {
-      paint(hazard, "hazard");
+      paint(hazard, "--hazard");
     }
 
-    // Fixed order: hazards first, then teleport telegraph, then entities.
     const telegraph = modeState.souls.enemyTeleportPreview;
     if (telegraph) {
       const width = telegraph.width ?? telegraph.size ?? 1;
       const height = telegraph.height ?? telegraph.size ?? 1;
       for (let dy = 0; dy < height; dy += 1) {
         for (let dx = 0; dx < width; dx += 1) {
-          paint({ x: telegraph.x + dx, y: telegraph.y + dy }, "telegraph");
+          paint({ x: telegraph.x + dx, y: telegraph.y + dy }, "--telegraph");
         }
       }
     }
 
     if (modeState.souls.sigil) {
-      paint(modeState.souls.sigil, "sigil");
+      paint(modeState.souls.sigil, "--sigil");
     }
 
     if (modeState.souls.echo?.position) {
-      paint(modeState.souls.echo.position, "echo");
+      paint(modeState.souls.echo.position, "--echo");
     }
   }
 
   if (modeState.base.food) {
-    paint(modeState.base.food, "food");
+    paint(modeState.base.food, "--food");
   }
 
   if (modeState.powerUp) {
-    paint(modeState.powerUp, "power-up");
+    paint(modeState.powerUp, "--power");
   }
 
   if (modeState.enemy) {
@@ -519,53 +537,65 @@ function renderBoard(modeState) {
     const enemyHeight = modeState.enemy.height ?? modeState.enemy.size ?? 1;
     for (let dy = 0; dy < enemyHeight; dy += 1) {
       for (let dx = 0; dx < enemyWidth; dx += 1) {
-        paint({ x: modeState.enemy.x + dx, y: modeState.enemy.y + dy }, "enemy");
+        paint({ x: modeState.enemy.x + dx, y: modeState.enemy.y + dy }, "--enemy");
       }
     }
   }
 
   if (modeState.mode === "souls" && Array.isArray(modeState.souls.minions)) {
     for (const minion of modeState.souls.minions) {
-      paint(minion, "enemy", "minion");
+      paint(minion, "--enemy", 1, "minion");
     }
   }
 
-  const variantClass =
-    modeState.mode === "souls" ? `variant-${modeState.souls.selectedSnakeId}` : null;
   const snakeLength = modeState.base.snake.length;
+  const variantId = modeState.mode === "souls" ? modeState.souls.selectedSnakeId : null;
+
+  // Map variant to color variables if they exist, else default
+  const getSnakeColor = (isHead) => {
+    if (!variantId) return isHead ? "--snake-head" : "--snake";
+    // Check if variant specific colors exist in CSS
+    // Based on old CSS: .cell.snake.variant-veloz { background: #2b77d8; }
+    // I should probably have tokens for these, but for now I'll use hardcoded 
+    // or look them up if I had added them to :root.
+    // Let's assume default for now or add them to :root later if needed.
+    // Actually, I can use the same logic as old CSS if I had converted them to variables.
+
+    // For now, let's support the known variants:
+    const variants = {
+      basica: ["#176338", "#1f7a46"],
+      veloz: ["#1f5aa1", "#2b77d8"],
+      tanque: ["#8f3a30", "#b34b3f"],
+      vidente: ["#5d3597", "#7446b8"]
+    };
+
+    if (variants[variantId]) {
+      return variants[variantId][isHead ? 0 : 1];
+    }
+
+    return isHead ? getColor("--snake-head") : getColor("--snake");
+  };
 
   for (let i = 0; i < modeState.base.snake.length; i += 1) {
-    const segment = toRenderPosition(modeState, modeState.base.snake[i], soulsOrigin);
-    if (!isInsideGrid(segment)) continue;
-    const index = indexForPosition(segment);
-    appendClassAt(index, "snake");
-    if (variantClass) {
-      appendClassAt(index, variantClass);
-    }
+    const worldPos = modeState.base.snake[i];
+    const renderPosition = toRenderPosition(modeState, worldPos, soulsOrigin);
+    if (!renderPosition || !isInsideGrid(renderPosition)) continue;
 
-    if (i === 0) {
-      appendClassAt(index, "head");
-      nextOpacityMap[index] = "1";
-    } else {
+    let opacity = 1;
+    if (i > 0) {
       const ratio = snakeLength > 1 ? i / (snakeLength - 1) : 1;
-      const opacity = Math.max(0.25, 1 - ratio * 0.75);
-      nextOpacityMap[index] = opacity.toFixed(3);
-    }
-  }
-
-  for (let index = 0; index < cells.length; index += 1) {
-    const cell = cells[index];
-    const nextClass = nextClassMap[index];
-    if (cellClassCache[index] !== nextClass) {
-      cell.className = nextClass;
-      cellClassCache[index] = nextClass;
+      opacity = Math.max(0.25, 1 - ratio * 0.75);
     }
 
-    const nextOpacity = nextOpacityMap[index];
-    if (cellOpacityCache[index] !== nextOpacity) {
-      cell.style.opacity = nextOpacity;
-      cellOpacityCache[index] = nextOpacity;
+    canvasCtx.globalAlpha = opacity;
+    const color = getSnakeColor(i === 0);
+    if (color.startsWith("#")) {
+      canvasCtx.fillStyle = color;
+    } else {
+      canvasCtx.fillStyle = getColor(color);
     }
+    canvasCtx.fillRect(renderPosition.x, renderPosition.y, 1, 1);
+    canvasCtx.globalAlpha = 1;
   }
 }
 
@@ -1246,13 +1276,7 @@ function runSoulsFrame(timestamp) {
 
   if (!shouldBlockSoulsStep()) {
     for (let i = 0; i < schedule.steps; i += 1) {
-      if (appState.soulsPendingDirection) {
-        appState.modeState = queueModeDirection(
-          appState.modeState,
-          appState.soulsPendingDirection
-        );
-        appState.soulsPendingDirection = null;
-      }
+      // Input queue is already populated in the mode state, stepModeState will process it.
 
       appState.modeState = stepModeState(appState.modeState, {
         deltaMs: SOULS_FIXED_STEP_MS,
@@ -1380,9 +1404,8 @@ function renderSoulsRewardModal() {
       button.type = "button";
       button.className = "souls-reward-option";
       button.dataset.powerId = powerId;
-      button.innerHTML = `<strong>${power?.name ?? powerId}</strong><small>${
-        power?.description ?? ""
-      }</small><small>Stack atual: ${currentStack}/${power?.maxStacks ?? 0}</small>`;
+      button.innerHTML = `<strong>${power?.name ?? powerId}</strong><small>${power?.description ?? ""
+        }</small><small>Stack atual: ${currentStack}/${power?.maxStacks ?? 0}</small>`;
 
       let handled = false;
       const select = (event) => {
@@ -1552,9 +1575,8 @@ function renderSoulsMenu() {
     const selected = appState.selectedSoulsSnakeId === snake.id;
 
     const card = document.createElement("div");
-    card.className = `snake-card ${selected ? "active" : ""} ${
-      unlocked ? "" : "locked"
-    }`.trim();
+    card.className = `snake-card ${selected ? "active" : ""} ${unlocked ? "" : "locked"
+      }`.trim();
 
     const title = document.createElement("div");
     title.className = "snake-card-title";
@@ -1769,24 +1791,40 @@ function queueDirectionForCurrentMode(direction) {
     return;
   }
 
-  appState.pressedDirections.add(direction);
-  if (appState.modeState.mode === "souls") {
-    appState.soulsPendingDirection = direction;
-  } else {
-    appState.modeState = queueModeDirection(appState.modeState, direction);
-    ensureTickerState();
-  }
+  appState.modeState = queueModeDirection(appState.modeState, direction);
 }
 
-function releaseDirectionForCurrentMode(direction) {
-  appState.pressedDirections.delete(direction);
-  if (appState.modeState && appState.modeState.mode !== "souls") {
-    ensureTickerState();
-  }
+function resolveEffectiveDirection(pressed) {
+  const up = pressed.has("UP");
+  const down = pressed.has("DOWN");
+  const left = pressed.has("LEFT");
+  const right = pressed.has("RIGHT");
+
+  if (up && left) return "UP_LEFT";
+  if (up && right) return "UP_RIGHT";
+  if (down && left) return "DOWN_LEFT";
+  if (down && right) return "DOWN_RIGHT";
+  if (up) return "UP";
+  if (down) return "DOWN";
+  if (left) return "LEFT";
+  if (right) return "RIGHT";
+  return null;
 }
 
 function getDirectionFromDelta(deltaX, deltaY) {
-  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+  const threshold = 0.5; // For diagonals
+
+  if (absX > 0 && absY > 0) {
+    const ratio = absX / absY;
+    if (ratio > 1 - threshold && ratio < 1 + threshold) {
+      if (deltaX > 0) return deltaY > 0 ? "DOWN_RIGHT" : "UP_RIGHT";
+      return deltaY > 0 ? "DOWN_LEFT" : "UP_LEFT";
+    }
+  }
+
+  if (absX >= absY) {
     return deltaX >= 0 ? "RIGHT" : "LEFT";
   }
   return deltaY >= 0 ? "DOWN" : "UP";
@@ -1838,10 +1876,14 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  const direction = directionFromInputKey(event.key);
-  if (direction) {
+  const baseDir = directionFromInputKey(event.key);
+  if (baseDir) {
     event.preventDefault();
-    queueDirectionForCurrentMode(direction);
+    appState.pressedDirections.add(baseDir);
+    const effectiveDir = resolveEffectiveDirection(appState.pressedDirections);
+    if (effectiveDir) {
+      queueDirectionForCurrentMode(effectiveDir);
+    }
     return;
   }
 
@@ -1859,12 +1901,16 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keyup", (event) => {
-  const direction = directionFromInputKey(event.key);
-  if (!direction) {
+  const baseDir = directionFromInputKey(event.key);
+  if (!baseDir) {
     return;
   }
 
-  releaseDirectionForCurrentMode(direction);
+  appState.pressedDirections.delete(baseDir);
+  const effectiveDir = resolveEffectiveDirection(appState.pressedDirections);
+  if (effectiveDir) {
+    queueDirectionForCurrentMode(effectiveDir);
+  }
 });
 
 window.addEventListener("blur", () => {

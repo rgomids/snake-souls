@@ -17,7 +17,7 @@ test("moves one cell in current direction without growing", () => {
       { x: 0, y: 2 },
     ],
     direction: "RIGHT",
-    pendingDirection: "RIGHT",
+    inputQueue: [],
     food: { x: 4, y: 4 },
     score: 0,
     isGameOver: false,
@@ -44,7 +44,7 @@ test("grows and increases score when food is eaten", () => {
       { x: 0, y: 2 },
     ],
     direction: "RIGHT",
-    pendingDirection: "RIGHT",
+    inputQueue: [],
     food: { x: 3, y: 2 },
     score: 0,
     isGameOver: false,
@@ -68,7 +68,7 @@ test("sets game over on wall collision", () => {
       { x: 1, y: 1 },
     ],
     direction: "RIGHT",
-    pendingDirection: "RIGHT",
+    inputQueue: [],
     food: { x: 0, y: 0 },
     score: 0,
     isGameOver: false,
@@ -92,7 +92,7 @@ test("sets game over on self collision", () => {
       { x: 2, y: 1 },
     ],
     direction: "UP",
-    pendingDirection: "LEFT",
+    inputQueue: ["LEFT"],
     food: { x: 5, y: 5 },
     score: 0,
     isGameOver: false,
@@ -112,5 +112,5 @@ test("food placement picks only free cells deterministically", () => {
 test("cannot reverse direction in a single input", () => {
   const state = createInitialState({ width: 8, height: 8, rng: () => 0 });
   const attemptedReverse = queueDirection(state, "LEFT");
-  assert.equal(attemptedReverse.pendingDirection, "RIGHT");
+  assert.equal(attemptedReverse.inputQueue.length, 0);
 });

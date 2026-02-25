@@ -52,7 +52,7 @@ test("traditional mode step matches classic snake logic", () => {
       { x: 1, y: 3 },
     ],
     direction: "RIGHT",
-    pendingDirection: "RIGHT",
+    inputQueue: [],
     food: { x: 7, y: 7 },
     score: 0,
     isGameOver: false,
@@ -331,7 +331,7 @@ test("spawned food and power-up never overlap occupied cells", () => {
 test("mode helpers queue direction, toggle pause and restart using same mode", () => {
   let state = createModeState({ mode: "levels", width: 20, height: 20, rng: () => 0 });
   state = queueModeDirection(state, "DOWN");
-  assert.equal(state.base.pendingDirection, "DOWN");
+  assert.equal(state.base.inputQueue[0], "DOWN");
 
   state = toggleModePause(state);
   assert.equal(state.isPaused, true);
