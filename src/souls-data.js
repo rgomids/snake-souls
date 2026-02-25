@@ -161,15 +161,15 @@
     cacador: Object.freeze({
       id: "cacador",
       name: "Caçador",
-      mechanic: "Persegue agressivamente a cabeça da cobra.",
+      mechanic:
+        "Persegue agressivamente, faz investida curta e entra em cansaço antes de recarregar.",
       size: "2x2",
       reward: "Boss comum: +40 runas e escolha de poder.",
     }),
     carcereiro: Object.freeze({
       id: "carcereiro",
       name: "Carcereiro",
-      mechanic:
-        "Patrulha com pulsos de hazard; persegue se a cabeça ficar a 3 blocos.",
+      mechanic: "Persegue continuamente e pressiona rota com pulsos de hazard.",
       size: "2x2",
       reward: "Boss comum: +40 runas e escolha de poder.",
     }),
@@ -183,7 +183,7 @@
     abissal: Object.freeze({
       id: "abissal",
       name: "Abissal",
-      mechanic: "Alterna padrões e acelera a pressão com hazards e teleporte.",
+      mechanic: "Perseguição implacável com pressão combinada de hazards e teleporte.",
       size: "3x2",
       reward:
         "Boss final: +120 runas, escolha de poder e progresso de desbloqueio.",

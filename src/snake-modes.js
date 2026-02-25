@@ -49,6 +49,15 @@
   const STAMINA_PHASE_READY = "ready";
   const STAMINA_PHASE_EXHAUSTED = "exhausted";
   const STAMINA_PHASE_RECOVERING = "recovering_lock";
+  const HUNTER_BOOST_PHASE_READY = "ready";
+  const HUNTER_BOOST_PHASE_BOOST = "boost";
+  const HUNTER_BOOST_PHASE_FATIGUE = "fatigue";
+  const HUNTER_BOOST_PHASE_RECOVER = "recover";
+  const HUNTER_BOOST_MS = 700;
+  const HUNTER_FATIGUE_MS = 1200;
+  const HUNTER_RECOVER_MS = 5000;
+  const HUNTER_BOOST_MULT = 1.55;
+  const HUNTER_FATIGUE_MULT = 0.7;
 
   function keyForPosition(position) {
     return `${position.x},${position.y}`;
@@ -729,6 +738,111 @@
     return minDistance;
   }
 
+  function normalizeHunterBoostState(source) {
+    const phase =
+      source?.phase === HUNTER_BOOST_PHASE_BOOST
+        ? HUNTER_BOOST_PHASE_BOOST
+        : source?.phase === HUNTER_BOOST_PHASE_FATIGUE
+          ? HUNTER_BOOST_PHASE_FATIGUE
+          : source?.phase === HUNTER_BOOST_PHASE_RECOVER
+            ? HUNTER_BOOST_PHASE_RECOVER
+            : HUNTER_BOOST_PHASE_READY;
+
+    const msRemaining =
+      phase === HUNTER_BOOST_PHASE_READY
+        ? 0
+        : Math.max(0, Math.floor(Number(source?.msRemaining ?? 0)));
+
+    return {
+      phase,
+      msRemaining,
+    };
+  }
+
+  function getHunterBoostPhaseDuration(phase) {
+    if (phase === HUNTER_BOOST_PHASE_BOOST) return HUNTER_BOOST_MS;
+    if (phase === HUNTER_BOOST_PHASE_FATIGUE) return HUNTER_FATIGUE_MS;
+    if (phase === HUNTER_BOOST_PHASE_RECOVER) return HUNTER_RECOVER_MS;
+    return 0;
+  }
+
+  function getNextHunterBoostPhase(phase) {
+    if (phase === HUNTER_BOOST_PHASE_BOOST) return HUNTER_BOOST_PHASE_FATIGUE;
+    if (phase === HUNTER_BOOST_PHASE_FATIGUE) return HUNTER_BOOST_PHASE_RECOVER;
+    if (phase === HUNTER_BOOST_PHASE_RECOVER) return HUNTER_BOOST_PHASE_READY;
+    return HUNTER_BOOST_PHASE_READY;
+  }
+
+  function advanceHunterBoostState(state, deltaMs) {
+    const normalized = normalizeHunterBoostState(state);
+    let phase = normalized.phase;
+    let msRemaining = normalized.msRemaining;
+    let remainingDelta = Math.max(0, Number(deltaMs) || 0);
+
+    while (remainingDelta > 0 && phase !== HUNTER_BOOST_PHASE_READY) {
+      const spent = Math.min(msRemaining, remainingDelta);
+      msRemaining -= spent;
+      remainingDelta -= spent;
+
+      if (msRemaining > 0) {
+        break;
+      }
+
+      phase = getNextHunterBoostPhase(phase);
+      msRemaining = getHunterBoostPhaseDuration(phase);
+    }
+
+    if (phase === HUNTER_BOOST_PHASE_READY) {
+      msRemaining = 0;
+    }
+
+    return {
+      phase,
+      msRemaining,
+    };
+  }
+
+  function updateHunterBoostRuntime(enemy, deltaMs) {
+    if (!enemy || enemy.id !== "cacador") {
+      return enemy;
+    }
+
+    return {
+      ...enemy,
+      hunterBoost: advanceHunterBoostState(enemy.hunterBoost, deltaMs),
+    };
+  }
+
+  function tryActivateHunterBoost(enemy, target) {
+    if (!enemy || enemy.id !== "cacador") {
+      return enemy;
+    }
+
+    const hunterBoost = normalizeHunterBoostState(enemy.hunterBoost);
+    if (hunterBoost.phase !== HUNTER_BOOST_PHASE_READY) {
+      return {
+        ...enemy,
+        hunterBoost,
+      };
+    }
+
+    const distanceToHead = getEnemyDistanceToPosition(enemy, target);
+    if (!Number.isFinite(distanceToHead) || distanceToHead <= 1) {
+      return {
+        ...enemy,
+        hunterBoost,
+      };
+    }
+
+    return {
+      ...enemy,
+      hunterBoost: {
+        phase: HUNTER_BOOST_PHASE_BOOST,
+        msRemaining: HUNTER_BOOST_MS,
+      },
+    };
+  }
+
   function getPowerStack(souls, powerId) {
     return souls.powers[powerId] ?? 0;
   }
@@ -927,9 +1041,15 @@
     const snakeBaseCps = speedRef?.snakeBaseCps ?? 0;
     const snakeNormalCps = speedRef?.snakeNormalCps ?? snakeBaseCps;
 
-    // Boss 1 tracks snake normal speed; stamina boost creates escape windows.
     if (enemy.id === "cacador") {
-      return clamp(snakeNormalCps, 1.2, 20);
+      const hunterBoost = normalizeHunterBoostState(enemy.hunterBoost);
+      let multiplier = 1;
+      if (hunterBoost.phase === HUNTER_BOOST_PHASE_BOOST) {
+        multiplier = HUNTER_BOOST_MULT;
+      } else if (hunterBoost.phase === HUNTER_BOOST_PHASE_FATIGUE) {
+        multiplier = HUNTER_FATIGUE_MULT;
+      }
+      return clamp(snakeNormalCps * multiplier, 1.2, 24);
     }
 
     const styleMultiplier =
@@ -1325,6 +1445,13 @@
       size: width === height ? width : undefined,
       speedPenaltyTicks: bossDefinition.speedPenaltyTicks ?? 0,
       reentryCooldownMs: 0,
+      hunterBoost:
+        bossDefinition.id === "cacador"
+          ? {
+            phase: HUNTER_BOOST_PHASE_READY,
+            msRemaining: 0,
+          }
+          : null,
     };
   }
 
@@ -1335,14 +1462,14 @@
 
     const base =
       stageType === "final_boss"
-        ? 4
+        ? 5
         : bossOrdinal === 1
           ? 2
           : bossOrdinal === 2
             ? 3
             : 4;
-    const cycleBonus = cycle >= 3 ? 1 : 0;
-    return Math.min(6, base + cycleBonus);
+    const cycleBonus = Math.floor((Math.max(1, cycle) - 1) / 2);
+    return Math.min(8, base + cycleBonus);
   }
 
   function spawnSoulsMinions(base, barriers, enemy, stageType, bossOrdinal, cycle, rng) {
@@ -1989,13 +2116,6 @@
     return next;
   }
 
-  function rotateDirectionClockwise(direction) {
-    if (direction === "UP") return "RIGHT";
-    if (direction === "RIGHT") return "DOWN";
-    if (direction === "DOWN") return "LEFT";
-    return "UP";
-  }
-
   function canEnemyMoveTo(base, candidate, enemy, minions, barriers, hazards) {
     const nextEnemy = {
       ...enemy,
@@ -2256,42 +2376,8 @@
     }
 
     nextEnemy.tickCounter = 0;
-
-    const carcereiroAggro =
-      enemy.id === "carcereiro" && getEnemyDistanceToPosition(nextEnemy, head) <= 3;
-
-    if (enemy.style === "patrol" && !carcereiroAggro) {
-      let direction = enemy.direction;
-      for (let i = 0; i < 4; i += 1) {
-        const vector = SnakeLogic.DIRECTION_VECTORS[direction];
-        const candidate = {
-          x: nextEnemy.x + vector.x,
-          y: nextEnemy.y + vector.y,
-        };
-        if (
-          canEnemyMoveTo(
-            base,
-            candidate,
-            nextEnemy,
-            souls.minions,
-            barriers,
-            hazards
-          )
-        ) {
-          nextEnemy.x = candidate.x;
-          nextEnemy.y = candidate.y;
-          nextEnemy.direction = direction;
-          return nextEnemy;
-        }
-        direction = rotateDirectionClockwise(direction);
-      }
-      return nextEnemy;
-    }
-
-    let directions = orderedEnemyDirections(nextEnemy, head);
-    if (enemy.style === "mixed" && nextEnemy.patternCounter % 3 === 0) {
-      directions = ["LEFT", "UP", "RIGHT", "DOWN"];
-    }
+    nextEnemy = tryActivateHunterBoost(nextEnemy, head);
+    const directions = orderedEnemyDirections(nextEnemy, head);
 
     for (const direction of directions) {
       const vector = SnakeLogic.DIRECTION_VECTORS[direction];
@@ -2741,6 +2827,10 @@
       deltaMs,
       holdCurrentDirection
     );
+    const runtimeEnemy = updateHunterBoostRuntime(
+      state.enemy ? { ...state.enemy } : null,
+      deltaMs
+    );
     souls.snakeSpeedCps = getSoulsSnakeSpeedCps(
       souls.floor,
       souls.stageType,
@@ -2750,8 +2840,8 @@
         exhausted: staminaRuntime.exhausted,
       }
     );
-    souls.enemySpeedCps = state.enemy
-      ? getSoulsEnemySpeedCps(state.enemy, {
+    souls.enemySpeedCps = runtimeEnemy
+      ? getSoulsEnemySpeedCps(runtimeEnemy, {
         snakeBaseCps: getSoulsSnakeBaseSpeedCps(
           souls.floor,
           souls.stageType,
@@ -2825,7 +2915,7 @@
     }
 
     const collectRange = hasPower(souls, "ima") ? 1 : 0;
-    let enemy = state.enemy ? { ...state.enemy } : null;
+    let enemy = runtimeEnemy ? { ...runtimeEnemy } : null;
     let minions = souls.minions;
     if (shouldMoveSnake) {
       const { direction, nextHead, nextQueue } = getNextHead(base);

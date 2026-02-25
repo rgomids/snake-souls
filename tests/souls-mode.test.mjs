@@ -62,6 +62,10 @@ function getForwardDisplacementX(initialState, finalState) {
   return finalState.base.snake[0].x - initialState.base.snake[0].x;
 }
 
+function manhattan(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
 test("souls starts with infinite viewport state and camera", () => {
   const state = createSouls();
 
@@ -126,6 +130,84 @@ test("boss viewport uses 31 and minions scale by boss/cycle", () => {
   });
   assert.equal(boss1Cycle3.souls.stageType, "boss");
   assert.equal(boss1Cycle3.souls.minions.length, 3);
+});
+
+test("minion curve scales by boss tier and cycle with cap 8", () => {
+  const initial = createSouls();
+
+  const boss2Cycle1 = devSetSoulsFloor(initial, 6, {
+    includeCountdown: false,
+    rng: () => 0.2,
+  });
+  assert.equal(boss2Cycle1.souls.minions.length, 3);
+
+  const boss3Cycle5 = devSetSoulsFloor(initial, 57, {
+    includeCountdown: false,
+    rng: () => 0.2,
+  });
+  assert.equal(boss3Cycle5.souls.minions.length, 6);
+
+  const finalCycle9 = devSetSoulsFloor(initial, 108, {
+    includeCountdown: false,
+    rng: () => 0.2,
+  });
+  assert.equal(finalCycle9.souls.minions.length, 8);
+});
+
+test("carcereiro keeps chasing even at long distance", () => {
+  let state = createSouls();
+  state = devSetSoulsFloor(state, 6, { includeCountdown: false, rng: () => 0.24 });
+  state.souls.world = null;
+  state.barriers = [];
+  state.souls.hazards = [];
+  state.souls.minions = [];
+  state.base.food = null;
+  state.souls.objectiveType = "sigil";
+  state.souls.objectiveTarget = 999;
+
+  const head = state.base.snake[0];
+  state.enemy = {
+    ...state.enemy,
+    x: head.x + 8,
+    y: head.y + 6,
+    tickCounter: 0,
+  };
+
+  const before = manhattan(state.enemy, head);
+  const next = stepModeState(state, { deltaMs: 160, rng: () => 0.24 });
+  const after = manhattan(next.enemy, next.base.snake[0]);
+  assert.ok(after < before, `expected chase distance to decrease (${before} -> ${after})`);
+});
+
+test("abissal movement prioritizes chase direction", () => {
+  let state = createSouls();
+  state = devSetSoulsFloor(state, 12, { includeCountdown: false, rng: () => 0.29 });
+  state.souls.world = null;
+  state.barriers = [];
+  state.souls.hazards = [];
+  state.souls.minions = [];
+  state.base.food = null;
+  state.souls.objectiveType = "sigil";
+  state.souls.objectiveTarget = 999;
+  state.base.snake = [
+    { x: 10, y: 15 },
+    { x: 9, y: 15 },
+    { x: 8, y: 15 },
+  ];
+  state.base.direction = "RIGHT";
+  state.base.pendingDirection = "RIGHT";
+  state.enemy = {
+    ...state.enemy,
+    x: 10,
+    y: 10,
+    patternCounter: 2,
+    tickCounter: 0,
+    direction: "LEFT",
+  };
+
+  const next = stepModeState(state, { deltaMs: 120, rng: () => 0.29 });
+  assert.equal(next.enemy.x, 10);
+  assert.equal(next.enemy.y, 11);
 });
 
 test("souls viewport adapts to aspect ratio and keeps odd dimensions", () => {
@@ -428,4 +510,41 @@ test("boss 1 matches normal snake speed and stamina boost opens escape window", 
     rng: () => 0.42,
   });
   assert.ok(boostedStep.souls.snakeSpeedCps > boostedStep.souls.enemySpeedCps);
+});
+
+test("hunter boost cycles through boost, fatigue, recover and ready", () => {
+  let state = createSouls();
+  state = devSetSoulsFloor(state, 3, { includeCountdown: false, rng: () => 0.21 });
+  state.souls.world = null;
+  state.barriers = [];
+  state.souls.hazards = [];
+  state.souls.minions = [];
+  state.base.food = null;
+  state.souls.objectiveType = "sigil";
+  state.souls.objectiveTarget = 999;
+  state.enemy = {
+    ...state.enemy,
+    x: state.base.snake[0].x + 6,
+    y: state.base.snake[0].y + 4,
+    tickCounter: 0,
+  };
+
+  const afterTrigger = stepModeState(state, { deltaMs: 180, rng: () => 0.21 });
+  assert.equal(afterTrigger.enemy.hunterBoost.phase, "boost");
+  assert.equal(afterTrigger.enemy.hunterBoost.msRemaining, 700);
+
+  const frozen = cloneState(afterTrigger);
+  frozen.enemy.moveEveryTicks = 9999;
+
+  const afterBoost = stepModeState(frozen, { deltaMs: 700, rng: () => 0.21 });
+  assert.equal(afterBoost.enemy.hunterBoost.phase, "fatigue");
+  assert.equal(afterBoost.enemy.hunterBoost.msRemaining, 1200);
+
+  const afterFatigue = stepModeState(afterBoost, { deltaMs: 1200, rng: () => 0.21 });
+  assert.equal(afterFatigue.enemy.hunterBoost.phase, "recover");
+  assert.equal(afterFatigue.enemy.hunterBoost.msRemaining, 5000);
+
+  const afterRecover = stepModeState(afterFatigue, { deltaMs: 5000, rng: () => 0.21 });
+  assert.equal(afterRecover.enemy.hunterBoost.phase, "ready");
+  assert.equal(afterRecover.enemy.hunterBoost.msRemaining, 0);
 });
