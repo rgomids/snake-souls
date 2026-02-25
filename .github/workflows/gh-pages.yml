@@ -1,0 +1,32 @@
+name: GitHub Pages Deploy
+on: push
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # fetch all history for all branches and tags
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci || true
+
+      - name: Build (no-op)
+        run: echo "no build necessary for plain HTML/JS"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          # optional: the repo root already contains the static assets
+          # if there was a build output directory such as 'dist' or 'public', set that instead

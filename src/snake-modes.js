@@ -440,11 +440,13 @@
   }
 
   function getNextHead(base) {
-    const nextDirection = base.pendingDirection ?? base.direction;
+    const nextQueue = [...(base.inputQueue ?? [])];
+    const nextDirection = nextQueue.shift() ?? base.direction;
     const movement = SnakeLogic.DIRECTION_VECTORS[nextDirection];
     const head = base.snake[0];
     return {
       direction: nextDirection,
+      nextQueue,
       nextHead: {
         x: head.x + movement.x,
         y: head.y + movement.y,
@@ -568,13 +570,13 @@
     const base = {
       ...state.base,
     };
-    const { direction, nextHead } = getNextHead(base);
+    const { direction, nextHead, nextQueue } = getNextHead(base);
 
     if (isOutOfBounds(base, nextHead)) {
       const nextBase = {
         ...base,
         direction,
-        pendingDirection: direction,
+        inputQueue: nextQueue,
       };
       return createGameOverState(state, nextBase);
     }
@@ -594,7 +596,7 @@
         ...base,
         snake: nextSnake,
         direction,
-        pendingDirection: direction,
+        inputQueue: nextQueue,
       };
       return createGameOverState(state, nextBase);
     }
@@ -603,7 +605,7 @@
       ...base,
       snake: nextSnake,
       direction,
-      pendingDirection: direction,
+      inputQueue: nextQueue,
       score: base.score + (willEatFood ? 1 : 0),
       isGameOver: false,
       isPaused: false,
@@ -796,29 +798,29 @@
       options.current === "max"
         ? stats.max
         : clamp(
-            Number(options.current ?? stats.max),
-            0,
-            stats.max
-          );
+          Number(options.current ?? stats.max),
+          0,
+          stats.max
+        );
     const phase =
       options.phase === STAMINA_PHASE_EXHAUSTED
         ? STAMINA_PHASE_EXHAUSTED
         : options.phase === STAMINA_PHASE_RECOVERING
-        ? STAMINA_PHASE_RECOVERING
-        : STAMINA_PHASE_READY;
+          ? STAMINA_PHASE_RECOVERING
+          : STAMINA_PHASE_READY;
     const exhaustedMsRemaining =
       phase === STAMINA_PHASE_EXHAUSTED
         ? Math.max(
-            0,
-            Math.floor(options.exhaustedMsRemaining ?? STAMINA_EXHAUST_MS)
-          )
+          0,
+          Math.floor(options.exhaustedMsRemaining ?? STAMINA_EXHAUST_MS)
+        )
         : 0;
     const lockMsRemaining =
       phase === STAMINA_PHASE_RECOVERING
         ? Math.max(
-            0,
-            Math.floor(options.lockMsRemaining ?? stats.recoveryMs)
-          )
+          0,
+          Math.floor(options.lockMsRemaining ?? stats.recoveryMs)
+        )
         : 0;
 
     return {
@@ -840,8 +842,8 @@
         source.phase === STAMINA_PHASE_EXHAUSTED
           ? STAMINA_PHASE_EXHAUSTED
           : source.phase === STAMINA_PHASE_RECOVERING
-          ? STAMINA_PHASE_RECOVERING
-          : STAMINA_PHASE_READY,
+            ? STAMINA_PHASE_RECOVERING
+            : STAMINA_PHASE_READY,
       exhaustedMsRemaining: Math.max(
         0,
         Math.floor(source.exhaustedMsRemaining ?? 0)
@@ -934,10 +936,10 @@
       enemy.style === "patrol"
         ? 0.9
         : enemy.style === "phase"
-        ? 0.95
-        : enemy.style === "mixed"
-        ? 1.1
-        : 1;
+          ? 0.95
+          : enemy.style === "mixed"
+            ? 1.1
+            : 1;
 
     const cps =
       (snakeBaseCps / Math.max(1, enemy.moveEveryTicks ?? 1)) * styleMultiplier;
@@ -1302,7 +1304,7 @@
     const moveEveryTicks = Math.max(
       1,
       Math.round(bossDefinition.moveEveryTicks / Math.max(1, cycle * 0.22)) +
-        (bossDefinition.speedPenaltyTicks ?? 0)
+      (bossDefinition.speedPenaltyTicks ?? 0)
     );
 
     return {
@@ -1335,10 +1337,10 @@
       stageType === "final_boss"
         ? 4
         : bossOrdinal === 1
-        ? 2
-        : bossOrdinal === 2
-        ? 3
-        : 4;
+          ? 2
+          : bossOrdinal === 2
+            ? 3
+            : 4;
     const cycleBonus = cycle >= 3 ? 1 : 0;
     return Math.min(6, base + cycleBonus);
   }
@@ -1437,8 +1439,8 @@
       souls.objectiveType === "sigil"
         ? souls.sigil
         : souls.objectiveType === "food"
-        ? base.food
-        : null;
+          ? base.food
+          : null;
     if (!target) {
       return {
         visible: false,
@@ -1521,7 +1523,7 @@
         { x: -2, y: 0 },
       ],
       direction: "RIGHT",
-      pendingDirection: "RIGHT",
+      inputQueue: [],
       food: null,
       score: state.base.score,
       isGameOver: false,
@@ -1619,16 +1621,16 @@
     const echo =
       floor === 1 && stage.stageType === "normal"
         ? spawnSoulsEcho(
-            base,
-            stageSouls,
-            barriers,
-            enemy,
-            minions,
-            hazards,
-            sigil,
-            state.souls.profile.pendingEcho,
-            rng
-          )
+          base,
+          stageSouls,
+          barriers,
+          enemy,
+          minions,
+          hazards,
+          sigil,
+          state.souls.profile.pendingEcho,
+          rng
+        )
         : null;
 
     const nextBase = {
@@ -1641,8 +1643,8 @@
     const initialStageFlow =
       options.includeCountdown === true
         ? createStageFlowState("countdown", {
-            msRemaining: SOULS_COUNTDOWN_MS,
-          })
+          msRemaining: SOULS_COUNTDOWN_MS,
+        })
         : createStageFlowState("idle");
 
     return {
@@ -1749,7 +1751,7 @@
           { x: -2, y: 0 },
         ],
         direction: "RIGHT",
-        pendingDirection: "RIGHT",
+        inputQueue: [],
         food: null,
         score: 0,
         isGameOver: false,
@@ -1859,8 +1861,8 @@
       options.mode === "levels"
         ? "levels"
         : options.mode === "souls"
-        ? "souls"
-        : "traditional";
+          ? "souls"
+          : "traditional";
 
     if (mode === "levels") {
       return createLevelsModeState(options);
@@ -1888,7 +1890,7 @@
 
     const nextBase = SnakeLogic.queueDirection(state.base, direction);
     const snake = getSnakeDefinition(state.souls);
-    const changed = nextBase.pendingDirection !== state.base.pendingDirection;
+    const changed = nextBase.inputQueue.length > state.base.inputQueue.length;
 
     return {
       ...state,
@@ -1898,9 +1900,9 @@
         directionLockMsRemaining:
           changed && snake?.directionLockTicks
             ? Math.round(
-                snake.directionLockTicks *
-                  (1000 / Math.max(0.1, state.souls.snakeSpeedCps || 1))
-              )
+              snake.directionLockTicks *
+              (1000 / Math.max(0.1, state.souls.snakeSpeedCps || 1))
+            )
             : 0,
       },
     };
@@ -2622,11 +2624,11 @@
       reward: state.souls.reward,
       echo: state.souls.echo
         ? {
-            ...state.souls.echo,
-            position: state.souls.echo.position
-              ? { ...state.souls.echo.position }
-              : null,
-          }
+          ...state.souls.echo,
+          position: state.souls.echo.position
+            ? { ...state.souls.echo.position }
+            : null,
+        }
         : null,
       minions: Array.isArray(state.souls.minions)
         ? state.souls.minions.map((minion) => ({ ...minion }))
@@ -2643,12 +2645,12 @@
       sigilIndicator: state.souls.sigilIndicator
         ? { ...state.souls.sigilIndicator }
         : {
-            visible: false,
-            angleDeg: 0,
-            leftPercent: 50,
-            topPercent: 50,
-            distance: 0,
-      },
+          visible: false,
+          angleDeg: 0,
+          leftPercent: 50,
+          topPercent: 50,
+          distance: 0,
+        },
     };
     const viewportAspect = normalizeSoulsViewportAspect(
       options.viewportAspect ?? souls.viewportAspect ?? 1
@@ -2750,17 +2752,17 @@
     );
     souls.enemySpeedCps = state.enemy
       ? getSoulsEnemySpeedCps(state.enemy, {
-          snakeBaseCps: getSoulsSnakeBaseSpeedCps(
-            souls.floor,
-            souls.stageType,
-            souls
-          ),
-          snakeNormalCps: getSoulsSnakeNormalSpeedCps(
-            souls.floor,
-            souls.stageType,
-            souls
-          ),
-        })
+        snakeBaseCps: getSoulsSnakeBaseSpeedCps(
+          souls.floor,
+          souls.stageType,
+          souls
+        ),
+        snakeNormalCps: getSoulsSnakeNormalSpeedCps(
+          souls.floor,
+          souls.stageType,
+          souls
+        ),
+      })
       : 0;
 
     reduceSoulsCooldowns(souls, deltaMs);
@@ -2790,7 +2792,7 @@
     const shouldMoveEnemy = souls.enemyMoveAccumulatorMs >= enemyIntervalMs;
     const readyTeleportPreview =
       souls.enemyTeleportPreview &&
-      souls.enemyTeleportPreview.msRemaining <= 0
+        souls.enemyTeleportPreview.msRemaining <= 0
         ? { ...souls.enemyTeleportPreview }
         : null;
     if (readyTeleportPreview) {
@@ -2826,7 +2828,7 @@
     let enemy = state.enemy ? { ...state.enemy } : null;
     let minions = souls.minions;
     if (shouldMoveSnake) {
-      const { direction, nextHead } = getNextHead(base);
+      const { direction, nextHead, nextQueue } = getNextHead(base);
 
       const willEatFood =
         souls.objectiveType === "food" &&
@@ -2852,7 +2854,7 @@
           ...base,
           snake: nextSnake,
           direction,
-          pendingDirection: direction,
+          inputQueue: nextQueue,
         };
         return createSoulsGameOver(state, collidedBase, souls);
       }
@@ -2861,7 +2863,7 @@
         ...base,
         snake: nextSnake,
         direction,
-        pendingDirection: direction,
+        inputQueue: nextQueue,
         score: base.score + (willEatFood || willCollectSigil ? 1 : 0),
         isGameOver: false,
         isPaused: false,
@@ -3228,8 +3230,8 @@
       typeof bossSlot === "string"
         ? bossSlot.toUpperCase()
         : Number.isFinite(Number(bossSlot))
-        ? String(Math.floor(Number(bossSlot)))
-        : "";
+          ? String(Math.floor(Number(bossSlot)))
+          : "";
 
     let withinCycle = null;
     if (token === "FINAL") {
