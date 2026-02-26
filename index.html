@@ -100,94 +100,13 @@
           </section>
 
           <section id="menu-screen" class="menu-screen" aria-label="Game menu">
-            <h2>Inicie sua run</h2>
-            <p class="menu-help">
-              Souls é o modo padrão. Os modos legacy podem surgir por easter egg.
-            </p>
-            <p id="menu-easter-egg-status" class="menu-easter-egg-status hidden" aria-live="polite">
-              Modos secretos desbloqueados nesta sessão de menu.
-            </p>
-            <p class="menu-version">Versão: <strong id="game-version">-</strong></p>
-            <div class="menu-options" aria-label="Game modes">
-              <button
-                type="button"
-                class="mode-option legacy-mode hidden"
-                data-mode-option="traditional"
-                aria-pressed="false"
-                aria-hidden="true"
-              >
-                <span class="mode-option-icon" aria-hidden="true">&#128013;</span>
-                <span class="mode-option-content">
-                  <strong>Clássico</strong>
-                  <small>Loop clássico contínuo.</small>
-                </span>
-              </button>
-              <button
-                type="button"
-                class="mode-option legacy-mode hidden"
-                data-mode-option="levels"
-                aria-pressed="false"
-                aria-hidden="true"
-              >
-                <span class="mode-option-icon" aria-hidden="true">&#127919;</span>
-                <span class="mode-option-content">
-                  <strong>Níveis</strong>
-                  <small>Objetivos por nível com escalada.</small>
-                </span>
-              </button>
-              <button
-                type="button"
-                class="mode-option active"
-                data-mode-option="souls"
-                aria-pressed="true"
-              >
-                <span class="mode-option-icon" aria-hidden="true">&#9876;</span>
-                <span class="mode-option-content">
-                  <strong>Souls</strong>
-                  <small>Floors, bosses e build de poderes.</small>
-                </span>
-              </button>
-              <button id="menu-settings-option" type="button" class="mode-option">
-                <span class="mode-option-icon" aria-hidden="true">&#9881;</span>
-                <span class="mode-option-content">
-                  <strong>Configurações</strong>
-                  <small>Controles mobile.</small>
-                </span>
-              </button>
-            </div>
-            <div class="menu-controls">
-              <button id="start-btn" type="button">Iniciar Souls</button>
-            </div>
-            <section id="settings-menu" class="settings-menu hidden" aria-label="Configurações">
-              <div class="settings-group">
-                <h3>Controles no celular</h3>
-                <label>
-                  <input type="radio" name="mobile-control-choice" value="dpad" />
-                  D-pad
-                </label>
-                <label>
-                  <input type="radio" name="mobile-control-choice" value="swipe" />
-                  Gestos (swipe)
-                </label>
-                <label>
-                  <input type="radio" name="mobile-control-choice" value="tap" />
-                  Toque direcional
-                </label>
+            <div class="menu-hero">
+              <div class="menu-title-block">
+                <h1 class="menu-game-title">Snakouls</h1>
+                <p class="menu-game-subtitle">Jörmungandr Decay</p>
               </div>
-            </section>
-
-            <section id="souls-menu" class="souls-menu hidden" aria-label="Souls setup">
-              <p class="souls-summary">
-                Runas na carteira: <strong id="souls-wallet-menu">0</strong>
-                <span class="souls-divider">|</span>
-                Boss final vencido: <strong id="souls-clears-menu">0</strong>
-              </p>
-              <div id="souls-snakes" class="souls-snakes"></div>
-              <div class="souls-unlock-actions">
-                <span id="souls-unlock-label">Sem desbloqueio disponível.</span>
-                <button id="souls-unlock-btn" type="button">Desbloquear</button>
-              </div>
-            </section>
+              <button id="start-btn" class="menu-start-btn" type="button">Iniciar</button>
+            </div>
           </section>
 
           <section id="game-screen" class="game-screen hidden" aria-label="Game view">

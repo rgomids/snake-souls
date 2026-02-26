@@ -14,6 +14,7 @@
  * Princípio SRP: não contém lógica de gameplay nem rendering de canvas.
  */
 
+const AudioManager     = require("../audio/audio-manager.js");
 const BoardRenderer    = require("../render/board-renderer.js");
 const HudRenderer      = require("../render/hud-renderer.js");
 const SoulsHudRenderer = require("../render/souls-hud-renderer.js");
@@ -29,7 +30,7 @@ class GameApp {
   static GRID_WIDTH            = 20;
   static GRID_HEIGHT           = 20;
   static SETTINGS_KEY          = "snake-settings-v1";
-  static GAME_VERSION          = "v0.14.3";
+  static GAME_VERSION          = "v0.15.0";
   static SCREEN_MENU           = "menu";
   static SCREEN_PLAYING        = "playing";
   static SCREEN_GAMEOVER       = "gameover";
@@ -241,6 +242,9 @@ class GameApp {
     this._runEndedMs                = null;
     this._soulsInterpState          = null;
     this._gestureSession            = null;
+
+    // ── Áudio ────────────────────────────────────────────────────────────────────
+    this._audio = new AudioManager();
   }
 
   // ── Inicialização ───────────────────────────────────────────────────────────
@@ -249,8 +253,22 @@ class GameApp {
   init() {
     this._applyTheme();
     this._attachEvents();
+    this._audio.init();
     this._setScreen(GameApp.SCREEN_MENU);
     this._renderAll();
+    // O browser bloqueia audio.play() antes da primeira interação do usuário.
+    // Registramos um listener de captura de uso único que dispara o BGM do menu
+    // assim que houver qualquer interação (click ou tecla), garantindo que a
+    // política de autoplay seja respeitada.
+    const unlockAudio = () => {
+      document.removeEventListener("click",   unlockAudio, true);
+      document.removeEventListener("keydown", unlockAudio, true);
+      if (this._screen === GameApp.SCREEN_MENU) {
+        this._audio.playBgm(AudioManager.BGM_MENU);
+      }
+    };
+    document.addEventListener("click",   unlockAudio, true);
+    document.addEventListener("keydown", unlockAudio, true);
   }
 
   // ── Ciclo de vida ───────────────────────────────────────────────────────────
@@ -276,6 +294,7 @@ class GameApp {
     this._runEndedMs   = null;
     this._syncProfileFromModeState();
     this._setScreen(GameApp.SCREEN_PLAYING);
+    this._audio.playBgm(AudioManager.BGM_MUSIC);
     this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height);
     this._renderAll();
     this._ensureLoop();
@@ -294,6 +313,7 @@ class GameApp {
     this._runEndedMs   = null;
     this._syncProfileFromModeState();
     this._setScreen(GameApp.SCREEN_PLAYING);
+    this._audio.playBgm(AudioManager.BGM_MUSIC);
     this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height);
     this._renderAll();
     this._ensureLoop();
@@ -309,6 +329,7 @@ class GameApp {
     this._modeState        = null;
     this._soulsInterpState = null;
     this._setScreen(GameApp.SCREEN_MENU);
+    this._audio.playBgm(AudioManager.BGM_MENU);
     this._renderAll();
   }
 
@@ -324,7 +345,9 @@ class GameApp {
     // Sem isso, prev e cur apontam para os mesmos dados após stepModeState.
     const prevBody = this._modeState.base?.snake?.map(p => ({ x: p.x, y: p.y })) ?? null;
 
-    const prevState = this._modeState;
+    const prevState       = this._modeState;
+    const prevScore       = prevState.base?.score ?? 0;
+    const prevHadReward   = prevState.mode === "souls" && prevState.souls?.reward != null;
     this._modeState = this._SM.stepModeState(this._modeState, {
       deltaMs:              fixedStepMs,
       holdCurrentDirection: this._isHoldingCurrentDirection(),
@@ -335,8 +358,22 @@ class GameApp {
     this._soulsInterpState = prevState;
     this._syncProfileFromModeState();
 
+    // ── Eventos de áudio ────────────────────────────────────────────────────
+    const newScore = this._modeState.base?.score ?? 0;
+    if (newScore > prevScore) {
+      this._audio.playSfx(AudioManager.SFX_POWERUP);
+    }
+    const nowHasReward = this._modeState.mode === "souls" && this._modeState.souls?.reward != null;
+    if (!prevHadReward && nowHasReward) {
+      this._audio.playBgm(AudioManager.BGM_SKILL_SELECTION);
+    }
+
     if (this._modeState.isGameOver) {
-      if (!this._runEndedMs) this._runEndedMs = Date.now();
+      if (!this._runEndedMs) {
+        this._runEndedMs = Date.now();
+        this._audio.stopBgm();
+        this._audio.playSfx(AudioManager.SFX_DEATH);
+      }
       this._setScreen(GameApp.SCREEN_GAMEOVER);
       this._gameLoop.stop();
     }
@@ -736,7 +773,7 @@ class GameApp {
     if (this._d.menuEasterEggStatusEl) {
       this._d.menuEasterEggStatusEl.classList.toggle("hidden", !this._legacyModesUnlocked);
     }
-    if (this._d.startBtn) {
+    if (this._d.startBtn && (this._d.menuModeBtns?.length ?? 0) > 0) {
       this._d.startBtn.textContent = `Iniciar ${this._formatModeLabel(selected)}`;
     }
   }
@@ -1049,6 +1086,7 @@ class GameApp {
     this._modeState = this._SM.chooseSoulsReward(this._modeState, powerId);
     this._syncProfileFromModeState();
     this._setScreen(GameApp.SCREEN_PLAYING);
+    this._audio.playBgm(AudioManager.BGM_MUSIC);
     this._renderAll();
     this._ensureLoop();
   }
