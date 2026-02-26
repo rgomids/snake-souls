@@ -42,35 +42,68 @@ function makeLevelState(overrides = {}) {
   };
 }
 
-test("traditional mode step matches classic snake logic", () => {
-  const customBase = {
-    width: 8,
-    height: 8,
-    snake: [
-      { x: 3, y: 3 },
-      { x: 2, y: 3 },
-      { x: 1, y: 3 },
-    ],
-    direction: "RIGHT",
-    inputQueue: [],
-    food: { x: 7, y: 7 },
-    score: 0,
-    isGameOver: false,
-    isPaused: false,
+test("traditional mode creates shooter state with 3 typed segments", () => {
+  const state = createModeState({ mode: "traditional", rng: () => 0 });
+
+  assert.equal(state.mode, "traditional");
+  assert.ok(state.shooter, "shooter sub-state should exist");
+  assert.equal(state.base.snake.length, 3);
+  assert.equal(state.base.snake[0].type, "head");
+  assert.equal(state.base.snake[1].type, "weapon");
+  assert.equal(state.base.snake[2].type, "life");
+  assert.equal(state.shooter.wave.phase, "countdown");
+  assert.equal(state.shooter.wave.number, 1);
+});
+
+test("traditional mode step advances wave countdown", () => {
+  const state = createModeState({ mode: "traditional", rng: () => 0 });
+  const countdownBefore = state.shooter.wave.countdownMs;
+
+  const next = stepModeState(state, { deltaMs: 500, rng: () => 0 });
+
+  assert.equal(next.mode, "traditional");
+  assert.ok(next.shooter.wave.countdownMs < countdownBefore, "countdown should decrease");
+  assert.equal(next.base.isGameOver, false);
+});
+
+test("traditional mode snake does NOT move without input", () => {
+  const state = createModeState({ mode: "traditional", rng: () => 0 });
+  const headBefore = { x: state.base.snake[0].x, y: state.base.snake[0].y };
+
+  // step without any queued direction — snake should stay put
+  const next = stepModeState(state, { deltaMs: 250, rng: () => 0 });
+
+  const headAfter = next.base.snake[0];
+  assert.equal(headAfter.x, headBefore.x, "x should not change without input");
+  assert.equal(headAfter.y, headBefore.y, "y should not change without input");
+});
+
+test("traditional mode snake moves one step when direction is queued", () => {
+  const state = createModeState({ mode: "traditional", rng: () => 0 });
+  // Seed a direction in the input queue to trigger one step
+  const stateWithInput = {
+    ...state,
+    base: { ...state.base, inputQueue: ["RIGHT"] },
   };
+  const headBefore = { x: stateWithInput.base.snake[0].x, y: stateWithInput.base.snake[0].y };
 
-  const traditionalState = {
-    ...createModeState({ mode: "traditional", width: 8, height: 8, rng: () => 0 }),
-    base: customBase,
-    isGameOver: false,
-    isPaused: false,
-  };
+  const next = stepModeState(stateWithInput, { deltaMs: 16, rng: () => 0 });
 
-  const expectedBase = SnakeLogic.stepState(customBase, { rng: () => 0 });
-  const actual = stepModeState(traditionalState, { rng: () => 0 });
+  const headAfter = next.base.snake[0];
+  const moved = headAfter.x !== headBefore.x || headAfter.y !== headBefore.y;
+  assert.ok(moved, "snake head should have moved after queuing a direction");
+});
 
-  assert.deepEqual(actual.base, expectedBase);
-  assert.equal(actual.mode, "traditional");
+test("traditional mode snake keeps moving when holdCurrentDirection is true", () => {
+  const state = createModeState({ mode: "traditional", rng: () => 0 });
+  const headBefore = { x: state.base.snake[0].x, y: state.base.snake[0].y };
+
+  // First step: queue is empty but holdCurrentDirection injects current direction
+  const next = stepModeState(state, { deltaMs: 16, rng: () => 0, holdCurrentDirection: true });
+
+  const headAfter = next.base.snake[0];
+  const moved = headAfter.x !== headBefore.x || headAfter.y !== headBefore.y;
+  assert.ok(moved, "snake should move when holdCurrentDirection is true");
 });
 
 test("levels mode starts with level 1 defaults", () => {
@@ -124,14 +157,7 @@ test("levels mode advances and recalculates difficulty on target completion", ()
   assert.equal(next.isGameOver, false);
 });
 
-test("holding current direction restores pre-slow tick in traditional and levels", () => {
-  const traditional = createModeState({ mode: "traditional", width: 8, height: 8, rng: () => 0 });
-  const traditionalStep = stepModeState(traditional, {
-    rng: () => 0,
-    holdCurrentDirection: true,
-  });
-  assert.equal(traditionalStep.tickMs, 120);
-
+test("holding current direction restores pre-slow tick in levels", () => {
   const levels = createModeState({ mode: "levels", width: 20, height: 20, rng: () => 0 });
   const levelsStep = stepModeState(levels, {
     rng: () => 0,

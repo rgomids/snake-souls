@@ -14,6 +14,10 @@
     global.SoulsWorld ||
     (typeof require !== "undefined" ? require("../world/souls-world.js") : null);
 
+  const ShooterState =
+    global.ShooterState ||
+    (typeof require !== "undefined" ? require("./shooter/shooter-state.js") : null);
+
   if (!SnakeLogic) {
     throw new Error("SnakeModes requires SnakeLogic.");
   }
@@ -399,26 +403,7 @@
   }
 
   function createTraditionalModeState(options) {
-    const width = options.width ?? 20;
-    const height = options.height ?? 20;
-    const rng = options.rng ?? Math.random;
-    const base = SnakeLogic.createInitialState({ width, height, rng });
-
-    return {
-      mode: "traditional",
-      base,
-      level: null,
-      levelProgress: 0,
-      levelTarget: 0,
-      tickMs: TRADITIONAL_TICK_MS,
-      barriers: [],
-      enemy: null,
-      powerUp: null,
-      shieldMsRemaining: 0,
-      isGameOver: base.isGameOver,
-      isPaused: base.isPaused,
-      souls: null,
-    };
+    return ShooterState.createShooterState(options);
   }
 
   function createLevelsModeState(options) {
@@ -2250,6 +2235,14 @@
       });
     }
 
+    if (state.mode === "traditional" && state.shooter) {
+      return createModeState({
+        mode: state.mode,
+        viewportAspect: options.viewportAspect ?? 1,
+        rng,
+      });
+    }
+
     return createModeState({
       mode: state.mode,
       width: state.base.width,
@@ -3645,26 +3638,7 @@
   }
 
   function stepTraditionalState(state, options = {}) {
-    const rng = options.rng ?? Math.random;
-    const nextBase = SnakeLogic.stepState(state.base, { rng });
-    const holdCurrentDirection = options.holdCurrentDirection === true;
-    return {
-      ...state,
-      base: nextBase,
-      isGameOver: nextBase.isGameOver,
-      isPaused: nextBase.isPaused,
-      tickMs: holdCurrentDirection
-        ? TRADITIONAL_BASE_TICK_MS
-        : TRADITIONAL_TICK_MS,
-      level: null,
-      levelProgress: 0,
-      levelTarget: 0,
-      barriers: [],
-      enemy: null,
-      powerUp: null,
-      shieldMsRemaining: 0,
-      souls: null,
-    };
+    return ShooterState.stepShooterState(state, options);
   }
 
   function stepModeState(state, options = {}) {

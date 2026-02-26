@@ -57,7 +57,21 @@ class HudRenderer {
 
     el.modeLabelEl.textContent = this._fmtMode(modeState.mode);
 
-    if (modeState.mode === "levels") {
+    if (modeState.mode === "traditional" && modeState.shooter) {
+      const sh    = modeState.shooter;
+      const snake = modeState.base?.snake ?? [];
+      const lives = snake.filter(s => s.type === "life").length;
+      const regenQueue  = sh.weaponRegenQueue ?? [];
+      const wRegenMs    = regenQueue[0] ?? 0;
+      const waveLabel   = sh.wave.phase === "countdown"
+        ? `Onda ${sh.wave.number} (em breve)`
+        : `Onda ${sh.wave.number}`;
+      el.levelValueEl.textContent    = waveLabel;
+      el.levelProgressEl.textContent = `Vidas: ${lives}`;
+      el.shieldTimeEl.textContent    = wRegenMs > 0
+        ? `Arma: ${(wRegenMs / 1000).toFixed(1)}s`
+        : "Arma: OK";
+    } else if (modeState.mode === "levels") {
       el.levelValueEl.textContent    = String(modeState.level);
       el.levelProgressEl.textContent = `${modeState.levelProgress}/${modeState.levelTarget}`;
       el.shieldTimeEl.textContent    = `${(modeState.shieldMsRemaining / 1000).toFixed(1)}s`;

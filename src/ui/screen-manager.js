@@ -67,12 +67,17 @@ class ScreenManager {
    * @param {object|null} modeState
    */
   updateSoulsUiDataset(modeState) {
-    const isImmersive = modeState?.mode === "souls"
+    const isImmersiveSouls = modeState?.mode === "souls"
       && !this.isMenu()
       && !modeState.isGameOver
       && !modeState.isPaused
       && !modeState.souls?.reward;
-    this._app.dataset.soulsUi = isImmersive ? "immersive" : "panel";
+    const isImmersiveShooter = modeState?.mode === "traditional"
+      && Boolean(modeState?.shooter)
+      && !this.isMenu()
+      && !modeState.isGameOver
+      && !modeState.isPaused;
+    this._app.dataset.soulsUi = (isImmersiveSouls || isImmersiveShooter) ? "immersive" : "panel";
   }
 
   /**

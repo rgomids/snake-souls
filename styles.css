@@ -1035,7 +1035,8 @@ button:disabled {
   }
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .app-shell {
+.app[data-mode="souls"][data-souls-ui="immersive"] .app-shell,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .app-shell {
   grid-template-columns: 1fr;
   max-width: none;
   gap: 0;
@@ -1047,19 +1048,29 @@ button:disabled {
 .app[data-mode="souls"][data-souls-ui="immersive"] .actions,
 .app[data-mode="souls"][data-souls-ui="immersive"] .help,
 .app[data-mode="souls"][data-souls-ui="immersive"] .souls-death-summary,
-.app[data-mode="souls"][data-souls-ui="immersive"] .dev-panel {
+.app[data-mode="souls"][data-souls-ui="immersive"] .dev-panel,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .sidebar,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .top-bar,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .hud,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .actions,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .help,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .souls-death-summary,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .dev-panel {
   display: none !important;
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .main-pane {
+.app[data-mode="souls"][data-souls-ui="immersive"] .main-pane,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .main-pane {
   min-height: 100vh;
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .game-screen {
+.app[data-mode="souls"][data-souls-ui="immersive"] .game-screen,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .game-screen {
   min-height: 100vh;
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .game-area {
+.app[data-mode="souls"][data-souls-ui="immersive"] .game-area,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .game-area {
   position: fixed;
   inset: 0;
   display: flex;
@@ -1072,7 +1083,8 @@ button:disabled {
   background: var(--bg);
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .grid {
+.app[data-mode="souls"][data-souls-ui="immersive"] .grid,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .grid {
   width: 100vw;
   height: 100vh;
   max-width: none;
@@ -1080,7 +1092,8 @@ button:disabled {
   grid-template-rows: repeat(var(--grid-height), 1fr);
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .touch-controls {
+.app[data-mode="souls"][data-souls-ui="immersive"] .touch-controls,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .touch-controls {
   position: fixed;
   left: 50%;
   bottom: 18px;
@@ -1189,4 +1202,95 @@ button:disabled {
   .gameover-card {
     padding: 14px;
   }
+}
+
+/* ── Weapon HUD ─────────────────────────────────────────────────────────── */
+
+.weapon-hud {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.weapon-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 10, 15, 0.82);
+  border: 1px solid #ffe066;
+  border-radius: 7px;
+  padding: 6px 10px 6px 8px;
+  min-width: 130px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.weapon-card--ready {
+  border-color: #66ff99;
+}
+
+.weapon-card__icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.weapon-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.weapon-card__name {
+  font-size: 0.72rem;
+  color: #ffe066;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+.weapon-card--ready .weapon-card__name {
+  color: #66ff99;
+}
+
+.weapon-card__bar-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.weapon-card__bar-fill {
+  height: 100%;
+  background: #ffe066;
+  border-radius: 3px;
+  transition: width 0.06s linear;
+}
+
+.weapon-card--ready .weapon-card__bar-fill {
+  background: #66ff99;
+}
+
+/* Dark overlay that occupies the right portion = cooldown fraction remaining */
+.weapon-card__cooldown-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: calc(var(--cd-pct, 0) * 100%);
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: width 0.06s linear;
 }

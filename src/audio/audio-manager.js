@@ -78,6 +78,17 @@ class AudioManager {
     instance.play().catch(() => {});
   }
 
+  /**
+   * Toca um efeito sonoro a partir de um caminho de arquivo arbitrário.
+   * Não requer pré-carregamento — útil para SFX configurados em JSON.
+   * @param {string} src  Caminho do arquivo de áudio
+   */
+  playSfxPath(src) {
+    if (this._muted || !src) return;
+    const el = new Audio(src);
+    el.play().catch(() => {});
+  }
+
   /** Para o BGM atual. */
   stopBgm() {
     this._stopBgm();
