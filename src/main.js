@@ -19,6 +19,7 @@ const SnakeLogic     = require("./core/snake-logic.js");
 const DevCodes       = require("./dev/dev-codes.js");
 const SoulsLoop      = require("./game/souls-loop.js");
 const SoulsUiHelpers = require("./ui/souls-ui-helpers.js");
+const WeaponCatalog  = require("./data/weapon-catalog.js");
 const GameApp        = require("./game/game-app.js");
 
 // ── Helpers de carga de estado inicial ──────────────────────────────────────
@@ -155,6 +156,10 @@ const deps = {
 
   // Área de gesto (canvas wrapper — usa .game-area como fallback)
   gameAreaEl:        document.querySelector(".game-area"),
+
+  // Weapon HUD
+  weaponHudEl:       qs("weapon-hud"),
+  weaponDefs:        WeaponCatalog.ALL,
 
   // Listas dinâmicas
   menuModeBtns:       qsa("[data-mode-option]"),

@@ -14,9 +14,11 @@
  * Princípio SRP: não contém lógica de gameplay nem rendering de canvas.
  */
 
-const BoardRenderer    = require("../render/board-renderer.js");
-const HudRenderer      = require("../render/hud-renderer.js");
-const SoulsHudRenderer = require("../render/souls-hud-renderer.js");
+const AudioManager       = require("../audio/audio-manager.js");
+const BoardRenderer      = require("../render/board-renderer.js");
+const HudRenderer        = require("../render/hud-renderer.js");
+const SoulsHudRenderer   = require("../render/souls-hud-renderer.js");
+const WeaponHudRenderer  = require("../render/weapon-hud-renderer.js");
 const ScreenManager    = require("../ui/screen-manager.js");
 const RewardModal      = require("../ui/reward-modal.js");
 const { BossIntelSidebar, PowersSidebar } = require("../ui/sidebars.js");
@@ -29,7 +31,7 @@ class GameApp {
   static GRID_WIDTH            = 20;
   static GRID_HEIGHT           = 20;
   static SETTINGS_KEY          = "snake-settings-v1";
-  static GAME_VERSION          = "v0.14.3";
+  static GAME_VERSION          = "v0.15.0";
   static SCREEN_MENU           = "menu";
   static SCREEN_PLAYING        = "playing";
   static SCREEN_GAMEOVER       = "gameover";
@@ -160,6 +162,11 @@ class GameApp {
       getWalletRunes:   () => this._profile?.walletRunes ?? 0,
     });
 
+    this._weaponHud = new WeaponHudRenderer({
+      containerEl: deps.weaponHudEl,
+      weaponDefs:  deps.weaponDefs ?? [],
+    });
+
     this._soulsHud = new SoulsHudRenderer({
       countdownEl:     deps.soulsCountdownEl,
       stageMessageEl:  deps.soulsStageMessageEl,
@@ -232,7 +239,7 @@ class GameApp {
     this._modeState                 = null;
     this._profile                   = deps.initialProfile ?? this._SP.createDefaultProfile();
     this._uiSettings                = deps.initialUiSettings ?? { mobileControl: "dpad" };
-    this._selectedMenuMode          = "souls";
+    this._selectedMenuMode          = "traditional";
     this._legacyModesUnlocked       = false;
     this._isSettingsOpen            = false;
     this._mobileInstructionsExpanded = false;
@@ -241,6 +248,9 @@ class GameApp {
     this._runEndedMs                = null;
     this._soulsInterpState          = null;
     this._gestureSession            = null;
+
+    // ── Áudio ────────────────────────────────────────────────────────────────────
+    this._audio = new AudioManager();
   }
 
   // ── Inicialização ───────────────────────────────────────────────────────────
@@ -249,8 +259,22 @@ class GameApp {
   init() {
     this._applyTheme();
     this._attachEvents();
+    this._audio.init();
     this._setScreen(GameApp.SCREEN_MENU);
     this._renderAll();
+    // O browser bloqueia audio.play() antes da primeira interação do usuário.
+    // Registramos um listener de captura de uso único que dispara o BGM do menu
+    // assim que houver qualquer interação (click ou tecla), garantindo que a
+    // política de autoplay seja respeitada.
+    const unlockAudio = () => {
+      document.removeEventListener("click",   unlockAudio, true);
+      document.removeEventListener("keydown", unlockAudio, true);
+      if (this._screen === GameApp.SCREEN_MENU) {
+        this._audio.playBgm(AudioManager.BGM_MENU);
+      }
+    };
+    document.addEventListener("click",   unlockAudio, true);
+    document.addEventListener("keydown", unlockAudio, true);
   }
 
   // ── Ciclo de vida ───────────────────────────────────────────────────────────
@@ -267,7 +291,9 @@ class GameApp {
           soulsSnakeId:   this._profile.selectedSnakeId,
           viewportAspect: this._getViewportAspectRatio(),
         })
-      : this._SM.createModeState({ mode, width: GameApp.GRID_WIDTH, height: GameApp.GRID_HEIGHT });
+      : mode === "traditional"
+        ? this._SM.createModeState({ mode, viewportAspect: this._getViewportAspectRatio() })
+        : this._SM.createModeState({ mode, width: GameApp.GRID_WIDTH, height: GameApp.GRID_HEIGHT });
 
     this._pressedDirections.clear();
     this._soulsInterpState = null;
@@ -276,7 +302,9 @@ class GameApp {
     this._runEndedMs   = null;
     this._syncProfileFromModeState();
     this._setScreen(GameApp.SCREEN_PLAYING);
-    this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height);
+    this._audio.playBgm(AudioManager.BGM_MUSIC);
+    this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height,
+      this._computeCellPx(this._modeState.base.width, this._modeState.base.height));
     this._renderAll();
     this._ensureLoop();
   }
@@ -294,7 +322,9 @@ class GameApp {
     this._runEndedMs   = null;
     this._syncProfileFromModeState();
     this._setScreen(GameApp.SCREEN_PLAYING);
-    this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height);
+    this._audio.playBgm(AudioManager.BGM_MUSIC);
+    this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height,
+      this._computeCellPx(this._modeState.base.width, this._modeState.base.height));
     this._renderAll();
     this._ensureLoop();
   }
@@ -309,6 +339,7 @@ class GameApp {
     this._modeState        = null;
     this._soulsInterpState = null;
     this._setScreen(GameApp.SCREEN_MENU);
+    this._audio.playBgm(AudioManager.BGM_MENU);
     this._renderAll();
   }
 
@@ -324,7 +355,12 @@ class GameApp {
     // Sem isso, prev e cur apontam para os mesmos dados após stepModeState.
     const prevBody = this._modeState.base?.snake?.map(p => ({ x: p.x, y: p.y })) ?? null;
 
-    const prevState = this._modeState;
+    const prevState       = this._modeState;
+    const prevScore       = prevState.base?.score ?? 0;
+    const prevHadReward   = prevState.mode === "souls" && prevState.souls?.reward != null;
+    // Captura IDs de swings e inimigos existentes para detectar novos após o passo
+    const prevSwingIds    = new Set((prevState.shooter?.swings   ?? []).map(s => s.id));
+    const prevEnemyIds    = new Set((prevState.shooter?.enemies  ?? []).map(e => e.id));
     this._modeState = this._SM.stepModeState(this._modeState, {
       deltaMs:              fixedStepMs,
       holdCurrentDirection: this._isHoldingCurrentDirection(),
@@ -335,8 +371,37 @@ class GameApp {
     this._soulsInterpState = prevState;
     this._syncProfileFromModeState();
 
+    // ── Eventos de áudio ────────────────────────────────────────────────────
+    const newScore = this._modeState.base?.score ?? 0;
+    if (newScore > prevScore) {
+      this._audio.playSfx(AudioManager.SFX_POWERUP);
+    }
+    // Dispara SFX de ataque para cada swing novo criado neste passo
+    for (const sw of (this._modeState.shooter?.swings ?? [])) {
+      if (!prevSwingIds.has(sw.id) && sw.attackSound) {
+        this._audio.playSfxPath(sw.attackSound);
+      }
+    }
+    // Dispara SFX de spawn uma vez por tipo de inimigo recém-spawnado neste passo
+    const spawnedSoundsSeen = new Set();
+    for (const en of (this._modeState.shooter?.enemies ?? [])) {
+      if (!prevEnemyIds.has(en.id) && en.spawnSound && !spawnedSoundsSeen.has(en.catalogId)) {
+        spawnedSoundsSeen.add(en.catalogId);
+        // Cada som toca de forma independente e assíncrona
+        Promise.resolve().then(() => this._audio.playSfxPath(en.spawnSound));
+      }
+    }
+    const nowHasReward = this._modeState.mode === "souls" && this._modeState.souls?.reward != null;
+    if (!prevHadReward && nowHasReward) {
+      this._audio.playBgm(AudioManager.BGM_SKILL_SELECTION);
+    }
+
     if (this._modeState.isGameOver) {
-      if (!this._runEndedMs) this._runEndedMs = Date.now();
+      if (!this._runEndedMs) {
+        this._runEndedMs = Date.now();
+        this._audio.stopBgm();
+        this._audio.playSfx(AudioManager.SFX_DEATH);
+      }
       this._setScreen(GameApp.SCREEN_GAMEOVER);
       this._gameLoop.stop();
     }
@@ -358,7 +423,8 @@ class GameApp {
 
     // Canvas
     if (this._modeState) {
-      this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height);
+      this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height,
+        this._computeCellPx(this._modeState.base.width, this._modeState.base.height));
       this._boardRenderer.render(this._modeState, {
         interpolation: this._soulsInterpState
           ? { fromState: this._soulsInterpState, alpha }
@@ -370,6 +436,7 @@ class GameApp {
     // HUD
     this._hudRenderer.render(this._modeState);
     this._soulsHud.render(this._modeState);
+    this._weaponHud.render(this._modeState);
 
     // Modal de recompensa
     this._rewardModal.render(this._modeState, this._screen);
@@ -392,7 +459,9 @@ class GameApp {
   }
 
   _shouldRunSoulsRaf() {
-    if (!this._modeState || this._modeState.mode !== "souls") return false;
+    if (!this._modeState) return false;
+    const mode = this._modeState.mode;
+    if (mode !== "souls" && mode !== "traditional") return false;
     if (this._screen === GameApp.SCREEN_MENU) return false;
     if (this._modeState.isGameOver || this._modeState.isPaused) return false;
     if (this._modeState.souls?.reward) return false;
@@ -404,7 +473,7 @@ class GameApp {
     if (this._modeState.isGameOver || this._modeState.isPaused)   { this._gameLoop.stop(); return; }
     if (this._modeState.mode === "souls" && this._modeState.souls?.reward) { this._gameLoop.stop(); return; }
 
-    if (this._modeState.mode === "souls") {
+    if (this._modeState.mode === "souls" || this._modeState.mode === "traditional") {
       this._gameLoop.startRaf();
     } else {
       this._gameLoop.startTick(this._getTickMs(this._modeState));
@@ -438,7 +507,9 @@ class GameApp {
       this._pressedDirections.clear();
       this._gestureSession = null;
       this._gameLoop.resetRafTiming();
-      if (this._modeState?.mode !== "souls") this._ensureLoop();
+      // RAF loops (souls, traditional) self-resume; tick loops (levels) need restart.
+      const isRafMode = this._modeState?.mode === "souls" || this._modeState?.mode === "traditional";
+      if (!isRafMode) this._ensureLoop();
     });
     window.addEventListener("focus", () => this._gameLoop.resetRafTiming());
     document.addEventListener("visibilitychange", () => {
@@ -736,7 +807,7 @@ class GameApp {
     if (this._d.menuEasterEggStatusEl) {
       this._d.menuEasterEggStatusEl.classList.toggle("hidden", !this._legacyModesUnlocked);
     }
-    if (this._d.startBtn) {
+    if (this._d.startBtn && (this._d.menuModeBtns?.length ?? 0) > 0) {
       this._d.startBtn.textContent = `Iniciar ${this._formatModeLabel(selected)}`;
     }
   }
@@ -794,9 +865,9 @@ class GameApp {
       if (this._d.gameOverExtraTitleEl) this._d.gameOverExtraTitleEl.textContent = "Nível alcançado";
       if (this._d.gameOverExtraEl)      this._d.gameOverExtraEl.textContent      = String(modeState.level);
     } else {
-      if (this._d.gameOverSummaryEl)    this._d.gameOverSummaryEl.textContent    = "Fim de partida. Tente uma rota mais segura na próxima tentativa.";
-      if (this._d.gameOverExtraTitleEl) this._d.gameOverExtraTitleEl.textContent = "Maior sequência";
-      if (this._d.gameOverExtraEl)      this._d.gameOverExtraEl.textContent      = String(modeState.base.snake.length);
+      if (this._d.gameOverSummaryEl)    this._d.gameOverSummaryEl.textContent    = "Fim de partida. Prepare-se melhor para a próxima onda.";
+      if (this._d.gameOverExtraTitleEl) this._d.gameOverExtraTitleEl.textContent = "Onda alcançada";
+      if (this._d.gameOverExtraEl)      this._d.gameOverExtraEl.textContent      = String(modeState.shooter?.wave?.number ?? 1);
     }
   }
 
@@ -922,7 +993,8 @@ class GameApp {
         viewportAspect: this._getViewportAspectRatio(),
       });
       this._syncProfileFromModeState();
-      this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height);
+      this._boardRenderer.ensureSize(this._modeState.base.width, this._modeState.base.height,
+        this._computeCellPx(this._modeState.base.width, this._modeState.base.height));
     };
 
     if (command === "SOULS_FLOOR") {
@@ -1049,6 +1121,7 @@ class GameApp {
     this._modeState = this._SM.chooseSoulsReward(this._modeState, powerId);
     this._syncProfileFromModeState();
     this._setScreen(GameApp.SCREEN_PLAYING);
+    this._audio.playBgm(AudioManager.BGM_MUSIC);
     this._renderAll();
     this._ensureLoop();
   }
@@ -1090,29 +1163,46 @@ class GameApp {
     return this._colorCache.get(name);
   }
 
-  _isLegacyMode(mode)          { return mode === "traditional" || mode === "levels"; }
-  _isMenuModeAvailable(mode)   { return mode === "souls" || (this._legacyModesUnlocked && this._isLegacyMode(mode)); }
-  _normalizeMenuMode(mode)     { return (mode === "traditional" || mode === "levels" || mode === "souls") ? mode : "souls"; }
-  _getSelectedMenuMode()       { const n = this._normalizeMenuMode(this._selectedMenuMode); return this._isMenuModeAvailable(n) ? n : "souls"; }
-  _setSelectedMenuMode(mode)   { const n = this._normalizeMenuMode(mode); this._selectedMenuMode = this._isMenuModeAvailable(n) ? n : "souls"; }
+  _isLegacyMode(mode)          { return mode === "levels"; }
+  _isMenuModeAvailable(mode)   { return mode === "souls" || mode === "traditional" || (this._legacyModesUnlocked && this._isLegacyMode(mode)); }
+  _normalizeMenuMode(mode)     { return (mode === "traditional" || mode === "levels" || mode === "souls") ? mode : "traditional"; }
+  _getSelectedMenuMode()       { const n = this._normalizeMenuMode(this._selectedMenuMode); return this._isMenuModeAvailable(n) ? n : "traditional"; }
+  _setSelectedMenuMode(mode)   { const n = this._normalizeMenuMode(mode); this._selectedMenuMode = this._isMenuModeAvailable(n) ? n : "traditional"; }
 
   _resetMenuSession(options = {}) {
     this._legacyModesUnlocked = false;
     this._konamiTracker.reset();
     if (options.forceSoulsSelection || this._isLegacyMode(this._selectedMenuMode)) {
-      this._selectedMenuMode = "souls";
+      this._selectedMenuMode = "traditional";
     }
   }
 
   _isImmersiveSouls() {
-    return this._modeState?.mode === "souls"
-      && this._screen !== GameApp.SCREEN_MENU
-      && !this._modeState.isGameOver
-      && !this._modeState.isPaused
-      && !this._modeState.souls?.reward;
+    if (!this._modeState || this._screen === GameApp.SCREEN_MENU) return false;
+    if (this._modeState.isGameOver || this._modeState.isPaused) return false;
+    if (this._modeState.mode === "souls") return !this._modeState.souls?.reward;
+    if (this._modeState.mode === "traditional" && this._modeState.shooter) return true;
+    return false;
   }
 
-  _formatModeLabel(mode)    { if (mode === "levels") return "Níveis"; if (mode === "souls") return "Souls"; return "Clássico"; }
+  /**
+   * Calcula o tamanho de célula em pixels físicos para o canvas.
+   * Em modos imersivos (souls/shooter) usa a resolução real da tela × DPR
+   * para que o canvas fique nativo e não seja escalado com blur.
+   * @param {number} gridW  Células horizontais
+   * @param {number} gridH  Células verticais
+   * @returns {number}
+   */
+  _computeCellPx(gridW, gridH) {
+    if (!this._isImmersiveSouls()) return BoardRenderer.CELL_PX;
+    const dpr = (typeof devicePixelRatio !== "undefined" ? devicePixelRatio : 1) || 1;
+    const sw  = (typeof window !== "undefined" ? window.innerWidth  : 0) * dpr;
+    const sh  = (typeof window !== "undefined" ? window.innerHeight : 0) * dpr;
+    if (!sw || !sh) return BoardRenderer.CELL_PX;
+    return Math.max(1, Math.round(Math.min(sw / gridW, sh / gridH)));
+  }
+
+  _formatModeLabel(mode)    { if (mode === "levels") return "Níveis"; if (mode === "souls") return "Souls"; return "Shooter"; }
   _formatSoulsStage(souls)  { if (!souls) return "-"; if (souls.stageType === "normal") return "Normal"; if (souls.stageType === "boss") return `Boss ${souls.bossName ?? ""}`.trim(); return `Boss Final ${souls.bossName ?? ""}`.trim(); }
 
   _getStatusText() {

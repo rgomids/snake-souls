@@ -58,6 +58,15 @@ class GameConstants {
 
   // ── Modo tradicional ──────────────────────────────────────────────────────
   static TRADITIONAL_TICK_MS = 200;
+
+  // ── Modo Shooter ──────────────────────────────────────────────────────────
+  static WEAPON_REGEN_MS      = 5000;
+  static SHOOTER_FIXED_STEP_MS = 1000 / 60;
+  static WAVE_COUNTDOWN_MS    = 3000;
+  static WAVE_INITIAL_ENEMIES = 3;
+  static SHOOTER_VIEWPORT_W   = 21;
+  static SHOOTER_VIEWPORT_H   = 21;
+  static SHOOTER_MOVE_PERIOD_MS = 200;
 }
 
 if (typeof module !== "undefined" && module.exports) {

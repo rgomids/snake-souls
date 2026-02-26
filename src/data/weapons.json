@@ -1,0 +1,17 @@
+[
+  {
+    "id": "espada",
+    "type": "melee",
+    "name": "Espada",
+    "icon": "resources/img/weapon/sword.png",
+    "symbol": "†",
+    "color": "#ffe066",
+    "disabledColor": "#555555",
+    "range": 5,
+    "arcDeg": 180,
+    "cooldownMs": 3000,
+    "damage": 3,
+    "swingDurationMs": 220,
+    "attackSound": "resources/audio/weapon/espada-slash.mp3"
+  }
+]

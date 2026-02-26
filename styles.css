@@ -1,26 +1,26 @@
 :root {
-  --bg: #07090f;
-  --panel: #131722;
-  --panel-strong: #1a2030;
-  --text: #f8f4eb;
-  --muted: #c6c1b6;
-  --line: #4b4f60;
-  --cell-border: #353b4d;
-  --cell-bg: #0b0f18;
-  --snake: #f2684f;
-  --snake-head: #ff4332;
-  --food: #ffd166;
-  --barrier: #8f99ad;
-  --enemy: #ffb36f;
-  --minion: #63d6a3;
-  --telegraph: #ff9252;
-  --power: #ffe27a;
-  --sigil: #8fd2ff;
-  --hazard: #ff5761;
-  --echo: #fff2a6;
-  --accent: #d98347;
-  --accent-strong: #f4a060;
-  --shadow-deep: 0 18px 40px rgba(0, 0, 0, 0.55);
+  --bg: #111318;
+  --panel: #181c26;
+  --panel-strong: #1f2435;
+  --text: #f0ece3;
+  --muted: #9ea3b0;
+  --line: #2e3348;
+  --cell-border: #232840;
+  --cell-bg: #13161f;
+  --snake: #ef6e58;
+  --snake-head: #f5503e;
+  --food: #f7c94e;
+  --barrier: #7a8499;
+  --enemy: #f5a55c;
+  --minion: #4fcb95;
+  --telegraph: #f08840;
+  --power: #f5d96a;
+  --sigil: #70c2f7;
+  --hazard: #f04e5a;
+  --echo: #f5ecaa;
+  --accent: #d07a40;
+  --accent-strong: #e8935a;
+  --shadow-deep: 0 20px 48px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 * {
@@ -43,15 +43,7 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.012) 0,
-      rgba(255, 255, 255, 0.012) 2px,
-      transparent 2px,
-      transparent 6px
-    );
-  opacity: 0.28;
+  background: radial-gradient(ellipse at 50% 0%, rgba(208, 122, 64, 0.07), transparent 60%);
   z-index: -1;
 }
 
@@ -77,9 +69,10 @@ body::before {
 .sidebar-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 240ms ease-out, border-color 240ms ease-out;
 }
 
 .sidebar-card h2 {
@@ -284,12 +277,13 @@ body::before {
 
 .boss-intel-card {
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 10px;
   background: var(--panel);
   display: flex;
   flex-direction: column;
   gap: 4px;
+  transition: border-color 240ms ease-out, box-shadow 240ms ease-out;
 }
 
 .boss-intel-card.locked {
@@ -326,12 +320,13 @@ body::before {
 
 .power-card {
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 10px;
   background: var(--panel);
   display: flex;
   flex-direction: column;
   gap: 4px;
+  transition: border-color 240ms ease-out, box-shadow 240ms ease-out;
 }
 
 .power-card-title {
@@ -396,14 +391,70 @@ h2 {
 }
 
 .menu-screen {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background-image: url(resources/img/menu.png);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 12vh;
+  animation: flat-fade-in 500ms ease-out;
+}
+
+.menu-hero {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  box-shadow: var(--shadow-deep);
+  align-items: center;
+  gap: 28px;
+}
+
+.menu-title-block {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-game-title {
+  margin: 0;
+  font-size: clamp(2.2rem, 6vw, 3.8rem);
+  font-weight: 700;
+  color: #f0e0cc;
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.65);
+}
+
+.menu-game-subtitle {
+  margin: 0;
+  font-size: clamp(0.78rem, 1.8vw, 1rem);
+  color: rgba(240, 215, 185, 0.68);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+}
+
+.menu-start-btn {
+  min-width: 220px;
+  padding: 14px 40px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  background: rgba(208, 122, 64, 0.20);
+  border: 1px solid rgba(232, 147, 90, 0.50);
+  border-radius: 12px;
+  color: #f0e0cc;
+  backdrop-filter: blur(10px);
+  transition: transform 220ms ease-out, background 220ms ease-out, box-shadow 220ms ease-out, border-color 220ms ease-out;
+}
+
+.menu-start-btn:hover:not(:disabled) {
+  transform: translateY(-3px);
+  background: rgba(208, 122, 64, 0.38);
+  border-color: rgba(232, 147, 90, 0.80);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.40);
 }
 
 .menu-help {
@@ -435,25 +486,27 @@ h2 {
 .mode-option {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent), var(--panel);
+  border-radius: 12px;
+  background: var(--panel);
   color: var(--text);
   padding: 10px;
   display: flex;
   align-items: flex-start;
   gap: 10px;
   text-align: left;
-  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+  transition: border-color 240ms ease-out, background-color 240ms ease-out, transform 240ms ease-out, box-shadow 240ms ease-out;
 }
 
 .mode-option:hover {
   border-color: var(--accent);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
 .mode-option.active {
   border-color: var(--accent-strong);
-  background: linear-gradient(180deg, rgba(186, 111, 67, 0.16), rgba(186, 111, 67, 0.05));
+  background: rgba(208, 122, 64, 0.12);
+  box-shadow: 0 0 0 1px rgba(208, 122, 64, 0.2) inset;
 }
 
 .mode-option-icon {
@@ -512,8 +565,8 @@ h2 {
 
 .menu-controls button {
   min-width: 190px;
-  background: linear-gradient(180deg, rgba(186, 111, 67, 0.24), rgba(186, 111, 67, 0.08));
-  border-color: #6b432d;
+  background: rgba(208, 122, 64, 0.18);
+  border-color: rgba(208, 122, 64, 0.5);
 }
 
 .settings-menu {
@@ -568,16 +621,18 @@ h2 {
 
 .snake-card {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--panel);
-  padding: 8px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  transition: border-color 240ms ease-out, box-shadow 240ms ease-out;
 }
 
 .snake-card.active {
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(208, 122, 64, 0.2) inset;
 }
 
 .snake-card.locked {
@@ -648,6 +703,10 @@ h2 {
   margin: 0 auto;
 }
 
+.app[data-screen="menu"] .top-bar {
+  visibility: hidden;
+}
+
 .app[data-screen="menu"] .sidebar {
   display: none;
 }
@@ -666,7 +725,7 @@ h2 {
 .game-area {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 10px;
   position: relative;
   box-shadow: var(--shadow-deep);
@@ -679,9 +738,10 @@ h2 {
   margin: 0 auto;
   display: block;
   border: 1px solid var(--line);
+  border-radius: 14px;
   aspect-ratio: var(--grid-width) / var(--grid-height);
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  overflow: hidden;
+  transition: box-shadow 300ms ease-out;
 }
 
 /* Canvas rendering handles these colors now */
@@ -694,21 +754,20 @@ h2 {
 
 button {
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent), var(--panel-strong);
+  border-radius: 10px;
+  background: var(--panel-strong);
   color: var(--text);
   padding: 8px 12px;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  transition: transform 220ms ease-out, border-color 220ms ease-out, background-color 220ms ease-out, box-shadow 220ms ease-out;
 }
 
 button:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   border-color: var(--accent);
-  background:
-    linear-gradient(180deg, rgba(186, 111, 67, 0.2), rgba(186, 111, 67, 0.05)),
-    var(--panel-strong);
+  background-color: var(--panel-strong);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
 }
 
 .theme-switch {
@@ -759,12 +818,14 @@ button:disabled {
 .souls-reward-modal {
   position: fixed;
   inset: 0;
-  background: rgba(3, 3, 6, 0.78);
+  background: rgba(3, 3, 6, 0.72);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
   z-index: 20;
+  animation: flat-fade-in 280ms ease-out;
+  backdrop-filter: blur(4px);
 }
 
 .souls-countdown {
@@ -775,11 +836,12 @@ button:disabled {
   justify-content: center;
   font-size: clamp(2.5rem, 10vw, 4.5rem);
   font-weight: 700;
-  color: #f6e4cf;
-  background: rgba(8, 8, 10, 0.36);
-  border-radius: 8px;
+  color: #f0e0cc;
+  background: rgba(8, 8, 10, 0.28);
+  border-radius: 12px;
   pointer-events: none;
   z-index: 5;
+  animation: flat-fade-in 260ms ease-out;
 }
 
 .souls-stage-message {
@@ -789,12 +851,14 @@ button:disabled {
   transform: translate(-50%, -50%);
   font-size: clamp(1.2rem, 3vw, 2rem);
   font-weight: 700;
-  color: #f2dec5;
-  background: rgba(10, 10, 13, 0.66);
+  color: #f0e0cc;
+  background: rgba(10, 10, 13, 0.60);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 18px;
+  border-radius: 14px;
+  padding: 10px 20px;
   z-index: 6;
+  animation: flat-fade-in 300ms ease-out;
+  backdrop-filter: blur(6px);
 }
 
 .souls-sigil-arrow {
@@ -850,7 +914,7 @@ button:disabled {
   width: 100%;
   height: 100%;
   background: linear-gradient(90deg, #8f4f36, #cc7f56);
-  transition: width 80ms linear;
+  transition: width 160ms ease-out;
 }
 
 .souls-stamina[data-phase="recovering_lock"] .souls-stamina-fill {
@@ -878,19 +942,21 @@ button:disabled {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(3, 3, 6, 0.8);
+  background: rgba(3, 3, 6, 0.76);
+  backdrop-filter: blur(4px);
 }
 
 .gameover-card {
   width: min(560px, 100%);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--panel);
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   box-shadow: var(--shadow-deep);
+  animation: flat-fade-in 300ms ease-out;
 }
 
 .gameover-card h2 {
@@ -919,6 +985,18 @@ button:disabled {
 
 .gameover-actions button {
   min-width: 180px;
+}
+
+@keyframes flat-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes souls-slide-in-left {
@@ -957,7 +1035,8 @@ button:disabled {
   }
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .app-shell {
+.app[data-mode="souls"][data-souls-ui="immersive"] .app-shell,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .app-shell {
   grid-template-columns: 1fr;
   max-width: none;
   gap: 0;
@@ -969,19 +1048,29 @@ button:disabled {
 .app[data-mode="souls"][data-souls-ui="immersive"] .actions,
 .app[data-mode="souls"][data-souls-ui="immersive"] .help,
 .app[data-mode="souls"][data-souls-ui="immersive"] .souls-death-summary,
-.app[data-mode="souls"][data-souls-ui="immersive"] .dev-panel {
+.app[data-mode="souls"][data-souls-ui="immersive"] .dev-panel,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .sidebar,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .top-bar,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .hud,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .actions,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .help,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .souls-death-summary,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .dev-panel {
   display: none !important;
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .main-pane {
+.app[data-mode="souls"][data-souls-ui="immersive"] .main-pane,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .main-pane {
   min-height: 100vh;
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .game-screen {
+.app[data-mode="souls"][data-souls-ui="immersive"] .game-screen,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .game-screen {
   min-height: 100vh;
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .game-area {
+.app[data-mode="souls"][data-souls-ui="immersive"] .game-area,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .game-area {
   position: fixed;
   inset: 0;
   display: flex;
@@ -994,7 +1083,8 @@ button:disabled {
   background: var(--bg);
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .grid {
+.app[data-mode="souls"][data-souls-ui="immersive"] .grid,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .grid {
   width: 100vw;
   height: 100vh;
   max-width: none;
@@ -1002,7 +1092,8 @@ button:disabled {
   grid-template-rows: repeat(var(--grid-height), 1fr);
 }
 
-.app[data-mode="souls"][data-souls-ui="immersive"] .touch-controls {
+.app[data-mode="souls"][data-souls-ui="immersive"] .touch-controls,
+.app[data-mode="traditional"][data-souls-ui="immersive"] .touch-controls {
   position: fixed;
   left: 50%;
   bottom: 18px;
@@ -1033,13 +1124,14 @@ button:disabled {
 .souls-reward-card {
   width: min(540px, 100%);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--panel);
-  padding: 14px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   box-shadow: var(--shadow-deep);
+  animation: flat-fade-in 300ms ease-out;
 }
 
 .souls-reward-card h3 {
@@ -1110,4 +1202,95 @@ button:disabled {
   .gameover-card {
     padding: 14px;
   }
+}
+
+/* ── Weapon HUD ─────────────────────────────────────────────────────────── */
+
+.weapon-hud {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.weapon-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 10, 15, 0.82);
+  border: 1px solid #ffe066;
+  border-radius: 7px;
+  padding: 6px 10px 6px 8px;
+  min-width: 130px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.weapon-card--ready {
+  border-color: #66ff99;
+}
+
+.weapon-card__icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.weapon-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.weapon-card__name {
+  font-size: 0.72rem;
+  color: #ffe066;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+.weapon-card--ready .weapon-card__name {
+  color: #66ff99;
+}
+
+.weapon-card__bar-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.weapon-card__bar-fill {
+  height: 100%;
+  background: #ffe066;
+  border-radius: 3px;
+  transition: width 0.06s linear;
+}
+
+.weapon-card--ready .weapon-card__bar-fill {
+  background: #66ff99;
+}
+
+/* Dark overlay that occupies the right portion = cooldown fraction remaining */
+.weapon-card__cooldown-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: calc(var(--cd-pct, 0) * 100%);
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: width 0.06s linear;
 }
