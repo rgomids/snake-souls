@@ -1,21 +1,20 @@
-# Snake Souls - Traditional, Levels e Souls
+# Snake Souls - Souls Main Mode
 
 Jogo Snake Souls em HTML/CSS/JS puro, sem dependências externas de runtime.
 
 Este projeto contém:
-- Modo **Traditional** (clássico)
-- Modo **Levels** (progressão por objetivo)
-- Modo **Souls** (floors, ciclos, bosses, runas, eco e build de poderes)
+- Modo **Souls** (principal: floors, ciclos, bosses, runas, eco e build de poderes)
+- Modos **Traditional** e **Levels** como legacy/easter egg via sequência secreta no menu
 - Painel de desenvolvimento (atalho `F2`) para QA local
+- Tema visual único dark e atmosfera pesada
 
 ## 1) Visão geral
 
 O jogo roda no navegador com assets locais e engine em JavaScript puro.
 
 ### Modos disponíveis
-- `Traditional`: loop clássico infinito, foco em sobrevivência e score.
-- `Levels`: metas por nível, aumento de dificuldade, barreiras/inimigo e power-up de escudo.
 - `Souls`: progressão por floors/ciclos, bosses em andares específicos, recompensa de poder e economia de runas.
+- `Traditional` e `Levels`: permanecem funcionais internamente, porém ocultos no menu por padrão.
 
 ## 2) Pré-requisitos e execução
 
@@ -57,8 +56,9 @@ php -S localhost:8000
 - Abrir/fechar Dev Mode: `F2`
 
 ### Controles on-screen/mobile
-- Menu inicial: selecione o modo pelos botões com ícones e clique em `Iniciar`.
-- No menu principal, há a opção `Configurações` para tema e controles mobile.
+- Menu inicial: `Souls` é o modo padrão; use `Iniciar Souls`.
+- No menu principal, há a opção `Configurações` para controles mobile.
+- Easter egg de modos legacy: sequência Konami (`↑ ↑ ↓ ↓ ← → ← → B A`) no menu.
 - No Souls em gameplay ativo: botão de pausa flutuante com suporte a toque.
 - No Souls, manter direção pressionada no D-pad também consome estamina para boost.
 - Em mobile, é possível escolher entre `D-pad`, `Gestos (swipe)` e `Toque direcional`.
@@ -72,24 +72,20 @@ php -S localhost:8000
 
 ## 4) Modos de jogo
 
-## Traditional
-- Grid fixo com movimentação por ticks.
-- Colisão com parede ou corpo: game over.
-- Comida aumenta score e tamanho.
-
-## Levels
-- Progressão por `nível` com meta de progresso por fase.
-- A dificuldade aumenta com nível (tick mais curto, mais barreiras, inimigo em níveis avançados).
-- Power-up de escudo aparece em níveis mais altos.
-- Escudo protege contra barreira/inimigo (não protege parede/corpo).
-
 ## Souls
 - Progressão por andares (`floor`) e ciclos.
 - Mundo infinito (sem colisão de borda) com câmera centralizada na cobra.
 - Viewport dinâmico por câmera com foco base `21` (normal) e `31` (boss/final), expandindo por proporção da tela para preencher o modo imersivo.
 - Bosses em floors `3`, `6`, `9`; boss final em `12`.
 - Após completar floor `12`, inicia próximo ciclo com escalada de dificuldade.
-- Conclusão de estágio: mensagem de conclusão + countdown visual `3,2,1`.
+- Conclusão de estágio contínua: avanço imediato para o próximo floor, sem freeze.
+- Feedback visual curto de transição (`~600ms`) sem pausar gameplay.
+- Obstáculos visíveis da tela atual são preservados na troca de fase para evitar surpresa injusta.
+
+## Legacy (easter egg)
+- `Traditional`: loop clássico infinito, foco em sobrevivência e score.
+- `Levels`: metas por nível, aumento de dificuldade, barreiras/inimigo e power-up de escudo.
+- Acesso oculto no menu via sequência Konami.
 
 ## 5) Sistemas do modo Souls
 
@@ -98,6 +94,8 @@ php -S localhost:8000
 - `boss` / `final_boss`: objetivo por coleta de sigilos.
 - Em boss, o sigilo nasce fora da tela (distância mínima) e uma seta indica a direção.
 - Em estágio normal, quando a comida estiver fora da viewport, a mesma seta aponta o objetivo.
+- Bosses e minions perseguem em 8 direções (incluindo diagonais).
+- A cadência de movimento de inimigos/minions não segue o boost instantâneo do jogador; perseguição usa ritmo próprio por fase.
 
 ### Runas
 - `carriedRunes` (em risco): acumuladas durante a run.
@@ -113,7 +111,7 @@ php -S localhost:8000
 - Após vitória de boss, abre modal com 3 poderes.
 - Escolha 1 poder para a build.
 - É possível reroll **1 vez** por boss, custo de `30` runas em risco.
-- Fluxo de transição: recompensa -> mensagem de estágio -> countdown -> próximo floor.
+- Fluxo de transição: recompensa -> próximo floor imediato (com mensagem curta, sem countdown).
 
 ### Poderes e stacks
 Pool atual:
@@ -137,24 +135,37 @@ A sidebar direita mostra somente poderes com stack `> 0`.
 
 ### Caçador
 - Footprint: `2x2`
-- Comportamento: perseguição agressiva.
-- Velocidade base alinhada com a velocidade normal da cobra (sem boost).
+- Comportamento: perseguição agressiva com ciclo de investida.
+- Ciclo de investida:
+  - `boost`: `0.7s` (`1.55x`)
+  - `fatigue`: `1.2s` (`0.70x`)
+  - `recover`: `5.0s`
+- Velocidade de referência alinhada com a velocidade normal da cobra quando fora de boost/fadiga.
 
 ### Carcereiro
 - Footprint: `2x2`
-- Comportamento: patrulha + pulsos de hazard.
-- Regra adicional: entra em perseguição quando a cabeça está a distância Manhattan `<= 3`; ao afastar, volta para patrulha.
+- Comportamento: perseguição contínua + pulsos de hazard.
 
 ### Espectro
 - Footprint: `2x2`
-- Comportamento: pressão com teleporte periódico.
+- Comportamento: perseguição com teleporte periódico.
 - Nerf aplicado: velocidade efetiva reduzida (penalidade adicional de tick).
 - Telegraph: antes de teleporte, marca alvo no board por `1s`.
 - Alvo do teleporte: tenta posição próxima da cabeça (distância Manhattan `<= 3`), com fallback para posição válida global.
 
 ### Abissal (boss final)
 - Footprint: `3x2` (horizontal fixa)
-- Comportamento: mistura padrões dos outros bosses, incluindo pressão com hazards/teleporte.
+- Comportamento: perseguição implacável com pressão de hazards/teleporte.
+
+### Minions por fase/ciclo
+- Curva linear por bloco de 3 floors (`normal`, `normal`, `boss`) com teto `8`.
+- Floor 1 (início do bloco 1): `0` minions.
+- Floor 2: `1` minion.
+- Boss do bloco 1 (floor 3): mantém o anterior e adiciona +2 (`3` total).
+- Após boss, há reset de minions para o início do próximo bloco.
+- Bloco 2 começa em `2` minions (floor 4), depois `3` (floor 5), boss vai para `5` (floor 6).
+- Bloco 3 começa em `4` minions; bloco final começa em `6`; bosses seguem +2 e respeitam teto `8`.
+- Em floors normais com minions ativos (sem boss), eles continuam se movendo e pressionando a rota do jogador.
 
 ## 7) HUD e sidebars
 
@@ -167,14 +178,16 @@ Contém:
 - Enciclopédia de chefes desbloqueada por derrotas (com contador de vitórias)
 
 ## Área central
-- Menu inicial centralizado com botões de modo (ícones dedicados por opção)
+- Menu inicial centralizado com `Souls` como opção padrão visível
+- Modos legacy ocultos por padrão e liberáveis por easter egg (Konami)
 - Versão do jogo visível no menu principal
 - Configuração de Souls (seleção de cobra/desbloqueio)
-- No Souls ativo: board em tela cheia com overlays (seta de sigilo, mensagem e countdown)
+- No Souls ativo: board em tela cheia com overlays (seta de sigilo e mensagem curta de transição)
 - Em pause/game over Souls: HUD e sidebars retornam com animação de slide-in
 - Em mobile, instruções ficam minimizadas por padrão e podem ser expandidas
 - Tela dedicada de `Game Over` com resumo da run e atalhos para reiniciar/menu
 - Modal de recompensa
+- Tema visual único dark para toda a interface
 
 ## Sidebar direita
 - Lista de poderes coletados na run Souls
@@ -239,6 +252,7 @@ Contém:
 │   ├── souls-data.js
 │   ├── souls-profile.js
 │   ├── dev-codes.js
+│   ├── easter-eggs.js
 │   ├── souls-loop.js
 │   └── souls-ui-helpers.js
 └── tests
@@ -249,6 +263,7 @@ Contém:
     ├── souls-profile.test.mjs
     ├── souls-loop.test.mjs
     ├── souls-ui-helpers.test.mjs
+    ├── easter-eggs.test.mjs
     └── dev-codes.test.mjs
 ```
 
@@ -268,6 +283,7 @@ Cobertura em alto nível:
 - loop/accumulator do Souls
 - parser de códigos de desenvolvimento
 - helpers de UI do modal de recompensa
+- detector de easter egg (Konami)
 
 ## 11) Troubleshooting
 
